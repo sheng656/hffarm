@@ -10,13 +10,15 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Loader2, Trash2, ChevronRight, CheckCircle2, ChevronUp, ChevronDown } from 'lucide-react'
+import { Loader2, Trash2, ChevronRight, CheckCircle2, ChevronUp, ChevronDown, CalendarIcon, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { TEAMS, CRATES, GREENHOUSES, PALLETS } from '@/lib/constants'
 import { useHarvestEntries } from '@/hooks/useHarvestEntries'
 import { useUser } from '@/hooks/useUser'
 import { cn } from '@/lib/utils'
-import { formatAucklandDate, formatAucklandTime } from '@/lib/auckland-time'
+import { formatAucklandDate, formatAucklandDateLabel, formatAucklandTime, toAucklandCalendarDate } from '@/lib/auckland-time'
+import { Calendar } from '@/components/ui/calendar'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import type { Product, HarvestEntryWithProduct } from '@/lib/types'
 
 const supabase = createClient()
@@ -70,7 +72,10 @@ function FreeCombobox({
 
 export default function RegisterPage() {
   const { profile, isEditor } = useUser()
-  const { data: todayEntries = [], isLoading: loadingEntries } = useHarvestEntries({ date: TODAY })
+  const [selectedDate, setSelectedDate] = useState(TODAY)
+  const [calOpen, setCalOpen] = useState(false)
+  const [showConfirmModal, setShowConfirmModal] = useState(false)
+  const { data: todayEntries = [], isLoading: loadingEntries } = useHarvestEntries({ date: selectedDate })
 
   const [selectedProductId, setSelectedProductId] = useState('')
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
@@ -82,7 +87,6 @@ export default function RegisterPage() {
   const [quantity, setQuantity] = useState(0)
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [lastSubmitted, setLastSubmitted] = useState<string | null>(null)
   const [isTodayListExpanded, setIsTodayListExpanded] = useState(false)
 
   const resetForm = useCallback(() => {
@@ -90,6 +94,51 @@ export default function RegisterPage() {
     setNotes('')
     // Keep product, team, crate, pallet, greenhouse for quick re-entry
   }, [])
+
+  async function executeSubmit() {
+    if (submitting) return
+
+    setShowConfirmModal(false)
+    setSubmitting(true)
+
+    const submissionDate = selectedDate
+
+    const finalBagQty = qtyMode === 'bag' ? quantity : 0
+    const finalLooseQty = qtyMode === 'loose' ? quantity : 0
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+
+      const { error } = await supabase.from('harvest_entries').insert({
+        entry_date: submissionDate,
+        product_id: selectedProductId,
+        bag_qty: finalBagQty,
+        loose_qty: finalLooseQty,
+        crate,
+        pallet,
+        greenhouse_no: greenhouse,
+        team,
+        notes: notes || null,
+        created_by: user?.id,
+        created_by_email: user?.email,
+      })
+
+      if (error) {
+        toast.error('提交失败', { description: error.message })
+        return
+      }
+
+      toast.success('✅ 录入成功！', {
+        description: `${selectedProduct?.factory_product_name} × ${quantity} (${qtyMode === 'bag' ? '包' : '散'})`,
+      })
+      resetForm()
+      mutate(`harvest:${submissionDate}:all:all`)
+      mutate(`harvest:${submissionDate}:${team}:all`)
+      mutate((key: string) => typeof key === 'string' && key.startsWith(`harvest:${submissionDate}:`), undefined, { revalidate: true })
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -99,39 +148,16 @@ export default function RegisterPage() {
     if (!greenhouse) { toast.error('请选择或输入大棚编号'); return }
     if (quantity <= 0) { toast.error('请输入有效数量'); return }
 
-    setSubmitting(true)
-    const { data: { user } } = await supabase.auth.getUser()
-
-    const finalBagQty = qtyMode === 'bag' ? quantity : 0
-    const finalLooseQty = qtyMode === 'loose' ? quantity : 0
-
-    const { error } = await supabase.from('harvest_entries').insert({
-      entry_date: TODAY,
-      product_id: selectedProductId,
-      bag_qty: finalBagQty,
-      loose_qty: finalLooseQty,
-      crate,
-      pallet,
-      greenhouse_no: greenhouse,
-      team,
-      notes: notes || null,
-      created_by: user?.id,
-      created_by_email: user?.email,
-    })
-
-    if (error) {
-      toast.error('提交失败', { description: error.message })
-    } else {
-      toast.success('✅ 录入成功！', {
-        description: `${selectedProduct?.factory_product_name} × ${quantity} (${qtyMode === 'bag' ? '包' : '散'})`,
-      })
-      setLastSubmitted(selectedProduct?.factory_product_name ?? '')
-      resetForm()
-      // Revalidate today's entries
-      mutate(`harvest:${TODAY}:all:all`)
-      mutate(`harvest:${TODAY}:${team}:all`)
+    if (selectedDate !== TODAY) {
+      setShowConfirmModal(true)
+      return
     }
-    setSubmitting(false)
+
+    await executeSubmit()
+  }
+
+  async function handleConfirmSubmit() {
+    await executeSubmit()
   }
 
   async function handleDelete(entryId: string) {
@@ -140,8 +166,8 @@ export default function RegisterPage() {
       toast.error('删除失败')
     } else {
       toast.success('已删除')
-      mutate(`harvest:${TODAY}:all:all`)
-      mutate((key: string) => typeof key === 'string' && key.startsWith('harvest:' + TODAY), undefined, { revalidate: true })
+      mutate(`harvest:${selectedDate}:all:all`)
+      mutate((key: string) => typeof key === 'string' && key.startsWith('harvest:' + selectedDate), undefined, { revalidate: true })
     }
   }
 
@@ -157,6 +183,40 @@ export default function RegisterPage() {
 
   return (
     <div className="space-y-5">
+      {/* Date Picker Card */}
+      <Card className="shadow-sm border-gray-100">
+        <CardContent className="pt-5 space-y-2">
+          <Label className="text-sm font-semibold text-gray-700">录入日期</Label>
+          <Popover open={calOpen} onOpenChange={setCalOpen}>
+            <PopoverTrigger
+              render={
+                <Button variant="outline" className="w-full h-12 justify-between text-base">
+                  <div className="flex items-center gap-2">
+                    <CalendarIcon className="w-4 h-4 text-green-600" />
+                    {formatAucklandDateLabel(selectedDate)}
+                  </div>
+                  <span className="text-xs text-gray-400">可选今日及以前</span>
+                </Button>
+              }
+            />
+            <PopoverContent className="w-auto p-0" align="center">
+              <Calendar
+                mode="single"
+                selected={toAucklandCalendarDate(selectedDate)}
+                onSelect={date => {
+                  if (date) {
+                    setSelectedDate(formatAucklandDate(date))
+                    setCalOpen(false)
+                  }
+                }}
+                disabled={date => formatAucklandDate(date) > TODAY}
+              />
+            </PopoverContent>
+          </Popover>
+          <p className="text-xs text-gray-400">选择历史日期时，提交前会再次确认，避免误录。</p>
+        </CardContent>
+      </Card>
+
       {/* Form Card */}
       <Card className="shadow-sm border-gray-100">
         <CardContent className="pt-5">
@@ -322,6 +382,55 @@ export default function RegisterPage() {
         </CardContent>
       </Card>
 
+      {showConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+          <div className="w-full max-w-lg rounded-3xl bg-white/95 shadow-2xl ring-1 ring-black/5 overflow-hidden">
+            <div className="px-6 py-5 bg-gradient-to-r from-amber-50 to-yellow-50 border-b border-amber-100">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-amber-100 flex items-center justify-center text-amber-700 shrink-0">
+                  <AlertCircle className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">确认历史日期录入</h3>
+                  <p className="text-sm text-gray-600">你正在提交非今日数据，请确认这不是误操作。</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-950">
+                <p className="text-sm font-semibold">警告</p>
+                <p className="mt-1 text-sm leading-6">
+                  当前选择的录入日期是 <span className="font-extrabold text-amber-700">{formatAucklandDateLabel(selectedDate)}</span>，
+                  不是今日 {formatAucklandDateLabel(TODAY)}。
+                  确认后将按该历史日期入库，并同步到下方对应日期列表。
+                </p>
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1 h-12 rounded-xl"
+                  onClick={() => setShowConfirmModal(false)}
+                  disabled={submitting}
+                >
+                  取消
+                </Button>
+                <Button
+                  type="button"
+                  className="flex-1 h-12 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold"
+                  onClick={handleConfirmSubmit}
+                  disabled={submitting}
+                >
+                  {submitting ? '提交中...' : '确认提交'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Today's entries list */}
       <div className="space-y-2">
         <button
@@ -331,7 +440,7 @@ export default function RegisterPage() {
         >
           <div className="flex items-center gap-2">
             <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">
-              今日已录入
+              {selectedDate === TODAY ? '今日已录入' : `${formatAucklandDateLabel(selectedDate)} 已录入`}
             </h2>
             <Badge variant="secondary" className="text-[11px] py-0 px-1.5 bg-gray-100 text-gray-600 font-bold">
               {todayEntries.length} 条
@@ -353,7 +462,7 @@ export default function RegisterPage() {
                 <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
               </div>
             ) : todayEntries.length === 0 ? (
-              <div className="text-center py-8 text-gray-400 text-sm bg-white rounded-xl border border-gray-100">今日暂无记录</div>
+              <div className="text-center py-8 text-gray-400 text-sm bg-white rounded-xl border border-gray-100">该日期暂无记录</div>
             ) : (
               <div className="space-y-2">
                 {todayEntries.map(entry => (
@@ -362,6 +471,7 @@ export default function RegisterPage() {
                     entry={entry}
                     currentUserId={profile?.id ?? ''}
                     isAdmin={profile?.role === 'admin'}
+                    activeDate={selectedDate}
                     onDelete={handleDelete}
                   />
                 ))}
@@ -378,14 +488,16 @@ function EntryCard({
   entry,
   currentUserId,
   isAdmin,
+  activeDate,
   onDelete,
 }: {
   entry: HarvestEntryWithProduct
   currentUserId: string
   isAdmin: boolean
+  activeDate: string
   onDelete: (id: string) => void
 }) {
-  const canDelete = isAdmin || (entry.created_by === currentUserId && entry.entry_date === TODAY)
+  const canDelete = isAdmin || (entry.created_by === currentUserId && entry.entry_date === activeDate)
   const [deleting, setDeleting] = useState(false)
 
   async function handleDelete() {
