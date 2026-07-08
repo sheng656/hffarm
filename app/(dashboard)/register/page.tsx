@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Loader2, Trash2, ChevronRight, CheckCircle2 } from 'lucide-react'
+import { Loader2, Trash2, ChevronRight, CheckCircle2, ChevronUp, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { TEAMS, CRATES, GREENHOUSES, PALLETS } from '@/lib/constants'
 import { useHarvestEntries } from '@/hooks/useHarvestEntries'
@@ -77,16 +77,16 @@ export default function RegisterPage() {
   const [team, setTeam] = useState('')
   const [crate, setCrate] = useState('')
   const [pallet, setPallet] = useState('NPO')
-  const [greenhouse, setGreenhouse] = useState('GH01')
-  const [bagQty, setBagQty] = useState(0)
-  const [looseQty, setLooseQty] = useState(0)
+  const [greenhouse, setGreenhouse] = useState('')
+  const [qtyMode, setQtyMode] = useState<'bag' | 'loose'>('bag')
+  const [quantity, setQuantity] = useState(0)
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [lastSubmitted, setLastSubmitted] = useState<string | null>(null)
+  const [isTodayListExpanded, setIsTodayListExpanded] = useState(false)
 
   const resetForm = useCallback(() => {
-    setBagQty(0)
-    setLooseQty(0)
+    setQuantity(0)
     setNotes('')
     // Keep product, team, crate, pallet, greenhouse for quick re-entry
   }, [])
@@ -96,16 +96,20 @@ export default function RegisterPage() {
     if (!selectedProductId) { toast.error('请选择产品'); return }
     if (!team) { toast.error('请选择团队'); return }
     if (!crate) { toast.error('请选择箱型'); return }
-    if (bagQty === 0 && looseQty === 0) { toast.error('包数或散数至少填一个'); return }
+    if (!greenhouse) { toast.error('请选择或输入大棚编号'); return }
+    if (quantity <= 0) { toast.error('请输入有效数量'); return }
 
     setSubmitting(true)
     const { data: { user } } = await supabase.auth.getUser()
 
+    const finalBagQty = qtyMode === 'bag' ? quantity : 0
+    const finalLooseQty = qtyMode === 'loose' ? quantity : 0
+
     const { error } = await supabase.from('harvest_entries').insert({
       entry_date: TODAY,
       product_id: selectedProductId,
-      bag_qty: bagQty,
-      loose_qty: looseQty,
+      bag_qty: finalBagQty,
+      loose_qty: finalLooseQty,
       crate,
       pallet,
       greenhouse_no: greenhouse,
@@ -119,7 +123,7 @@ export default function RegisterPage() {
       toast.error('提交失败', { description: error.message })
     } else {
       toast.success('✅ 录入成功！', {
-        description: `${selectedProduct?.factory_product_name} × ${bagQty + looseQty}`,
+        description: `${selectedProduct?.factory_product_name} × ${quantity} (${qtyMode === 'bag' ? '包' : '散'})`,
       })
       setLastSubmitted(selectedProduct?.factory_product_name ?? '')
       resetForm()
@@ -216,29 +220,77 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            {/* Pallet + Greenhouse */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label className="text-sm font-semibold text-gray-700">板型</Label>
-                <FreeCombobox value={pallet} onChange={setPallet} options={PALLETS} placeholder="板型" />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-sm font-semibold text-gray-700">大棚编号</Label>
-                <FreeCombobox value={greenhouse} onChange={setGreenhouse} options={GREENHOUSES} placeholder="大棚" />
+            {/* Pallet Selection */}
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold text-gray-700">板型 *</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {PALLETS.map(p => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setPallet(p)}
+                    className={cn(
+                      'h-11 rounded-xl text-sm font-medium transition-all duration-150 border-2',
+                      pallet === p
+                        ? 'bg-green-600 text-white border-green-600 shadow-sm'
+                        : 'bg-white text-gray-700 border-gray-200 hover:border-green-300 hover:bg-green-50 active:scale-95',
+                    )}
+                  >
+                    {p}
+                  </button>
+                ))}
               </div>
             </div>
 
-            {/* Bag + Loose Qty */}
-            <div className="grid grid-cols-2 gap-3">
-              <NumberStepper label="Bag（包数）" value={bagQty} onChange={setBagQty} />
-              <NumberStepper label="Loose（散数）" value={looseQty} onChange={setLooseQty} />
+            {/* Greenhouse Selection */}
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold text-gray-700">大棚编号 *</Label>
+              <FreeCombobox value={greenhouse} onChange={setGreenhouse} options={GREENHOUSES} placeholder="输入或选择大棚编号..." />
             </div>
+
+            {/* Quantity Type selection (二选一) */}
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold text-gray-700">数量类型 *</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setQtyMode('bag'); setQuantity(0) }}
+                  className={cn(
+                    'h-12 rounded-xl text-sm font-bold transition-all duration-150 border-2',
+                    qtyMode === 'bag'
+                      ? 'bg-green-600 text-white border-green-600 shadow-md'
+                      : 'bg-white text-gray-700 border-gray-200 hover:border-green-300 hover:bg-green-50 active:scale-95',
+                  )}
+                >
+                  Bag（包数）
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setQtyMode('loose'); setQuantity(0) }}
+                  className={cn(
+                    'h-12 rounded-xl text-sm font-bold transition-all duration-150 border-2',
+                    qtyMode === 'loose'
+                      ? 'bg-green-600 text-white border-green-600 shadow-md'
+                      : 'bg-white text-gray-700 border-gray-200 hover:border-green-300 hover:bg-green-50 active:scale-95',
+                  )}
+                >
+                  Loose（散数）
+                </button>
+              </div>
+            </div>
+
+            {/* Quantity input */}
+            <NumberStepper
+              label={qtyMode === 'bag' ? '包数数量 (Bag)' : '散数数量 (Loose)'}
+              value={quantity}
+              onChange={setQuantity}
+            />
 
             {/* Total preview */}
-            {(bagQty > 0 || looseQty > 0) && (
+            {quantity > 0 && (
               <div className="flex items-center justify-between bg-green-50 rounded-xl px-4 py-2.5">
-                <span className="text-sm text-green-700">总数量</span>
-                <span className="text-2xl font-bold text-green-700">{bagQty + looseQty}</span>
+                <span className="text-sm text-green-700">录入总数量 ({qtyMode === 'bag' ? '包' : '散'})</span>
+                <span className="text-2xl font-bold text-green-700">{quantity}</span>
               </div>
             )}
 
@@ -272,31 +324,50 @@ export default function RegisterPage() {
 
       {/* Today's entries list */}
       <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">
-            今日已录入
-          </h2>
-          <span className="text-xs text-gray-400">{todayEntries.length} 条</span>
-        </div>
+        <button
+          type="button"
+          onClick={() => setIsTodayListExpanded(!isTodayListExpanded)}
+          className="w-full flex items-center justify-between bg-white hover:bg-gray-50 border border-gray-100 px-4 py-3 rounded-xl shadow-sm active:scale-[0.99] transition-all duration-150"
+        >
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">
+              今日已录入
+            </h2>
+            <Badge variant="secondary" className="text-[11px] py-0 px-1.5 bg-gray-100 text-gray-600 font-bold">
+              {todayEntries.length} 条
+            </Badge>
+          </div>
+          <span className="text-xs text-green-600 font-semibold flex items-center gap-1">
+            {isTodayListExpanded ? (
+              <>收起 <ChevronUp className="w-3.5 h-3.5" /></>
+            ) : (
+              <>展开查看 <ChevronDown className="w-3.5 h-3.5" /></>
+            )}
+          </span>
+        </button>
 
-        {loadingEntries ? (
-          <div className="flex justify-center py-8">
-            <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
-          </div>
-        ) : todayEntries.length === 0 ? (
-          <div className="text-center py-8 text-gray-400 text-sm">今日暂无记录</div>
-        ) : (
-          <div className="space-y-2">
-            {todayEntries.map(entry => (
-              <EntryCard
-                key={entry.id}
-                entry={entry}
-                currentUserId={profile?.id ?? ''}
-                isAdmin={profile?.role === 'admin'}
-                onDelete={handleDelete}
-              />
-            ))}
-          </div>
+        {isTodayListExpanded && (
+          <>
+            {loadingEntries ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
+              </div>
+            ) : todayEntries.length === 0 ? (
+              <div className="text-center py-8 text-gray-400 text-sm bg-white rounded-xl border border-gray-100">今日暂无记录</div>
+            ) : (
+              <div className="space-y-2">
+                {todayEntries.map(entry => (
+                  <EntryCard
+                    key={entry.id}
+                    entry={entry}
+                    currentUserId={profile?.id ?? ''}
+                    isAdmin={profile?.role === 'admin'}
+                    onDelete={handleDelete}
+                  />
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -323,6 +394,8 @@ function EntryCard({
     setDeleting(false)
   }
 
+  const entryTime = entry.created_at ? format(new Date(entry.created_at), 'HH:mm') : ''
+
   return (
     <div className="flex items-center gap-3 bg-white rounded-xl border border-gray-100 px-4 py-3 shadow-sm slide-in">
       <div className="flex-1 min-w-0">
@@ -343,19 +416,27 @@ function EntryCard({
         </div>
       </div>
 
-      {canDelete && (
-        <button
-          onClick={handleDelete}
-          disabled={deleting}
-          className="flex-shrink-0 p-2 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 active:scale-95 transition-all"
-          aria-label="删除"
-        >
-          {deleting
-            ? <Loader2 className="w-4 h-4 animate-spin" />
-            : <Trash2 className="w-4 h-4" />
-          }
-        </button>
-      )}
+      <div className="flex items-center gap-2 flex-shrink-0">
+        {entryTime && (
+          <span className="text-[11px] text-gray-400 font-medium bg-gray-50 px-1.5 py-0.5 rounded">
+            {entryTime}
+          </span>
+        )}
+
+        {canDelete && (
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="p-2 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 active:scale-95 transition-all"
+            aria-label="删除"
+          >
+            {deleting
+              ? <Loader2 className="w-4 h-4 animate-spin" />
+              : <Trash2 className="w-4 h-4" />
+            }
+          </button>
+        )}
+      </div>
     </div>
   )
 }
