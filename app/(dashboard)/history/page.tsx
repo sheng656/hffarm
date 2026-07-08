@@ -1,8 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { format } from 'date-fns'
-import { zhCN } from 'date-fns/locale'
 import { useHarvestEntries } from '@/hooks/useHarvestEntries'
 import { TEAMS, TEAM_COLORS } from '@/lib/constants'
 import { Badge } from '@/components/ui/badge'
@@ -13,6 +11,7 @@ import { Loader2, Download, CalendarIcon, ChevronDown, ChevronRight } from 'luci
 import { cn } from '@/lib/utils'
 import { exportHarvestDetail } from '@/lib/export-excel'
 import { useDateFilter } from '@/stores/dateFilter'
+import { formatAucklandDate, formatAucklandDateLabel, toAucklandCalendarDate } from '@/lib/auckland-time'
 import type { HarvestEntryWithProduct, ProductSummary } from '@/lib/types'
 
 export default function HistoryPage() {
@@ -34,7 +33,7 @@ export default function HistoryPage() {
   const grandTotal = allEntries.reduce((s, e) => s + e.total_qty, 0)
   const grouped = groupByProduct(entries)
 
-  const displayDate = format(new Date(selectedDate + 'T12:00:00'), 'yyyy年MM月dd日', { locale: zhCN })
+  const displayDate = formatAucklandDateLabel(selectedDate)
 
   return (
     <div className="space-y-4">
@@ -54,10 +53,10 @@ export default function HistoryPage() {
         <PopoverContent className="w-auto p-0" align="center">
           <Calendar
             mode="single"
-            selected={new Date(selectedDate + 'T12:00:00')}
+            selected={toAucklandCalendarDate(selectedDate)}
             onSelect={(date) => {
               if (date) {
-                setSelectedDate(format(date, 'yyyy-MM-dd'))
+                setSelectedDate(formatAucklandDate(date))
                 setCalOpen(false)
               }
             }}

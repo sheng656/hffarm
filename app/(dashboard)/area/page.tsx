@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { format } from 'date-fns'
 import { useHarvestEntries } from '@/hooks/useHarvestEntries'
 import { AREA_CATEGORIES, AREA_LABELS } from '@/lib/constants'
 import { Badge } from '@/components/ui/badge'
@@ -12,6 +11,7 @@ import { Loader2, Download, CalendarIcon, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { exportAreaSummaryExcel } from '@/lib/export-excel'
 import { useDateFilter } from '@/stores/dateFilter'
+import { formatAucklandDate, formatAucklandDateLabel, toAucklandCalendarDate } from '@/lib/auckland-time'
 import type { HarvestEntryWithProduct } from '@/lib/types'
 
 export default function AreaPage() {
@@ -42,7 +42,7 @@ export default function AreaPage() {
             <Button variant="outline" className="w-full h-12 text-base justify-between">
               <div className="flex items-center gap-2">
                 <CalendarIcon className="w-4 h-4 text-green-600" />
-                {format(new Date(selectedDate + 'T12:00:00'), 'yyyy年MM月dd日')}
+                {formatAucklandDateLabel(selectedDate)}
               </div>
               <ChevronDown className="w-4 h-4 text-gray-400" />
             </Button>
@@ -51,8 +51,8 @@ export default function AreaPage() {
         <PopoverContent className="w-auto p-0" align="center">
           <Calendar
             mode="single"
-            selected={new Date(selectedDate + 'T12:00:00')}
-            onSelect={date => { if (date) { setSelectedDate(format(date, 'yyyy-MM-dd')); setCalOpen(false) } }}
+            selected={toAucklandCalendarDate(selectedDate)}
+            onSelect={date => { if (date) { setSelectedDate(formatAucklandDate(date)); setCalOpen(false) } }}
           />
         </PopoverContent>
       </Popover>

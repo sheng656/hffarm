@@ -1,7 +1,7 @@
 // @ts-ignore
 import * as XLSX from 'xlsx-js-style'
 import type { HarvestEntryWithProduct } from './types'
-import { format } from 'date-fns'
+import { formatAucklandDateTime, formatAucklandFileTimestamp } from './auckland-time'
 
 /**
  * 导出收菜明细数据为 Excel
@@ -28,7 +28,7 @@ export function exportHarvestDetail(
     '团队': e.team,
     '备注': e.notes ?? '',
     '录入人': e.created_by_email ?? '',
-    '录入时间': format(new Date(e.created_at), 'yyyy-MM-dd HH:mm:ss')
+    '录入时间': formatAucklandDateTime(e.created_at)
   }))
 
   const worksheet = XLSX.utils.json_to_sheet(data)
@@ -66,7 +66,7 @@ export function exportAreaDetail(
     '团队': e.team,
     '备注': e.notes ?? '',
     '录入人': e.created_by_email ?? '',
-    '录入时间': format(new Date(e.created_at), 'yyyy-MM-dd HH:mm:ss')
+    '录入时间': formatAucklandDateTime(e.created_at)
   }))
 
   const worksheet = XLSX.utils.json_to_sheet(data)
@@ -268,7 +268,7 @@ export function exportAllHistory(entries: HarvestEntryWithProduct[]) {
     '板型': e.pallet,
     '备注': e.notes ?? '',
     '录入人': e.created_by_email ?? '',
-    '录入时间': e.created_at ? format(new Date(e.created_at), 'yyyy-MM-dd HH:mm:ss') : ''
+    '录入时间': e.created_at ? formatAucklandDateTime(e.created_at) : ''
   }))
 
   const worksheet = XLSX.utils.json_to_sheet(data)
@@ -297,7 +297,7 @@ export function exportAllHistory(entries: HarvestEntryWithProduct[]) {
   ]
   worksheet['!cols'] = maxW
 
-  const filename = `HF_Farm_All_Harvest_History_${format(new Date(), 'yyyyMMdd_HHmmss')}.xlsx`
+  const filename = `HF_Farm_All_Harvest_History_${formatAucklandFileTimestamp()}.xlsx`
   XLSX.writeFile(workbook, filename)
 }
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { format } from 'date-fns'
+import { formatAucklandDate, formatAucklandDateLabel } from '@/lib/auckland-time'
 import { useHarvestEntries } from '@/hooks/useHarvestEntries'
 import { TEAMS, TEAM_COLORS } from '@/lib/constants'
 import { Badge } from '@/components/ui/badge'
@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils'
 import { exportHarvestDetail } from '@/lib/export-excel'
 import type { HarvestEntryWithProduct, ProductSummary } from '@/lib/types'
 
-const TODAY = format(new Date(), 'yyyy-MM-dd')
+const TODAY = formatAucklandDate()
 
 export default function TodayPage() {
   const [activeTeam, setActiveTeam] = useState('all')
@@ -38,7 +38,7 @@ export default function TodayPage() {
       <div className="bg-gradient-to-br from-green-600 to-emerald-700 rounded-2xl p-5 text-white shadow-lg">
         <p className="text-sm font-medium text-green-100">今日全场总收菜量</p>
         <p className="text-5xl font-black mt-1 tracking-tight">{grandTotal}</p>
-        <p className="text-xs text-green-200 mt-1">{format(new Date(), 'yyyy年MM月dd日')}</p>
+        <p className="text-xs text-green-200 mt-1">{formatAucklandDateLabel()}</p>
       </div>
 
       {/* Team Tabs */}

@@ -15,12 +15,12 @@ import { toast } from 'sonner'
 import { TEAMS, CRATES, GREENHOUSES, PALLETS } from '@/lib/constants'
 import { useHarvestEntries } from '@/hooks/useHarvestEntries'
 import { useUser } from '@/hooks/useUser'
-import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
+import { formatAucklandDate, formatAucklandTime } from '@/lib/auckland-time'
 import type { Product, HarvestEntryWithProduct } from '@/lib/types'
 
 const supabase = createClient()
-const TODAY = format(new Date(), 'yyyy-MM-dd')
+const TODAY = formatAucklandDate()
 
 // Combobox-style select that allows free-form input
 function FreeCombobox({
@@ -394,7 +394,7 @@ function EntryCard({
     setDeleting(false)
   }
 
-  const entryTime = entry.created_at ? format(new Date(entry.created_at), 'HH:mm') : ''
+  const entryTime = entry.created_at ? formatAucklandTime(entry.created_at) : ''
 
   return (
     <div className="flex items-center gap-3 bg-white rounded-xl border border-gray-100 px-4 py-3 shadow-sm slide-in">

@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { format } from 'date-fns'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { useHarvestEntries } from '@/hooks/useHarvestEntries'
 import { TEAMS, TEAM_COLORS } from '@/lib/constants'
@@ -10,6 +9,7 @@ import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Loader2, CalendarIcon, ChevronDown } from 'lucide-react'
 import { useDateFilter } from '@/stores/dateFilter'
+import { formatAucklandDate, formatAucklandDateLabel, toAucklandCalendarDate } from '@/lib/auckland-time'
 
 export default function ChartPage() {
   const { selectedDate, setSelectedDate } = useDateFilter()
@@ -33,7 +33,7 @@ export default function ChartPage() {
             <Button variant="outline" className="w-full h-12 text-base justify-between">
               <div className="flex items-center gap-2">
                 <CalendarIcon className="w-4 h-4 text-green-600" />
-                {format(new Date(selectedDate + 'T12:00:00'), 'yyyy年MM月dd日')}
+                {formatAucklandDateLabel(selectedDate)}
               </div>
               <ChevronDown className="w-4 h-4 text-gray-400" />
             </Button>
@@ -42,8 +42,8 @@ export default function ChartPage() {
         <PopoverContent className="w-auto p-0" align="center">
           <Calendar
             mode="single"
-            selected={new Date(selectedDate + 'T12:00:00')}
-            onSelect={date => { if (date) { setSelectedDate(format(date, 'yyyy-MM-dd')); setCalOpen(false) } }}
+            selected={toAucklandCalendarDate(selectedDate)}
+            onSelect={date => { if (date) { setSelectedDate(formatAucklandDate(date)); setCalOpen(false) } }}
           />
         </PopoverContent>
       </Popover>

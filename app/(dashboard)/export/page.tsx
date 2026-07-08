@@ -1,8 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { format } from 'date-fns'
-import { zhCN } from 'date-fns/locale'
 import { useHarvestEntries } from '@/hooks/useHarvestEntries'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
@@ -14,6 +12,7 @@ import { exportDailyRegister, exportAllHistory } from '@/lib/export-excel'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
+import { formatAucklandDate, formatAucklandDateLabel, toAucklandCalendarDate } from '@/lib/auckland-time'
 
 export default function ExportPage() {
   const { selectedDate, setSelectedDate } = useDateFilter()
@@ -24,7 +23,7 @@ export default function ExportPage() {
 
   const { data: entries = [], isLoading } = useHarvestEntries({ date: selectedDate })
 
-  const displayDate = format(new Date(selectedDate + 'T12:00:00'), 'yyyy年MM月dd日', { locale: zhCN })
+  const displayDate = formatAucklandDateLabel(selectedDate)
 
   const greenhouseCount = entries.filter(e => e.area_category === '棚内区域').length
   const outdoorCount = entries.filter(e => e.area_category === '户外WF03区域').length
@@ -99,8 +98,8 @@ export default function ExportPage() {
         <PopoverContent className="w-auto p-0" align="center">
           <Calendar
             mode="single"
-            selected={new Date(selectedDate + 'T12:00:00')}
-            onSelect={date => { if (date) { setSelectedDate(format(date, 'yyyy-MM-dd')); setCalOpen(false) } }}
+            selected={toAucklandCalendarDate(selectedDate)}
+            onSelect={date => { if (date) { setSelectedDate(formatAucklandDate(date)); setCalOpen(false) } }}
           />
         </PopoverContent>
       </Popover>

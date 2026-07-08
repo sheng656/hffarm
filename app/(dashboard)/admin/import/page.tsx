@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Loader2, Upload, FileUp, CheckCircle, AlertTriangle, ShieldAlert } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { parseExcelDateToAucklandDate } from '@/lib/auckland-time'
 
 const supabase = createClient()
 
@@ -64,15 +65,7 @@ export default function ImportPage() {
           const productCode = String(row.Product || '').trim()
           const uuid = productMap.get(productCode)
 
-          const dateVal = row.Date
-          let entryDate = ''
-          if (dateVal instanceof Date) {
-            entryDate = dateVal.toISOString().split('T')[0]
-          } else if (typeof dateVal === 'string') {
-            entryDate = dateVal.split('T')[0]
-          } else if (dateVal) {
-            entryDate = String(dateVal).trim()
-          }
+          const entryDate = parseExcelDateToAucklandDate(row.Date)
 
           const bag = parseInt(row.Bag || row.bag || 0, 10)
           const loose = parseInt(row.Loose || row.loose || 0, 10)

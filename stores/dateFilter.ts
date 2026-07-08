@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { format } from 'date-fns'
+import { formatAucklandDate } from '@/lib/auckland-time'
 
 interface DateFilterState {
   selectedDate: string // ISO date string YYYY-MM-DD
@@ -8,7 +8,7 @@ interface DateFilterState {
 }
 
 export const useDateFilter = create<DateFilterState>((set) => ({
-  selectedDate: format(new Date(), 'yyyy-MM-dd'),
+  selectedDate: formatAucklandDate(),
   setSelectedDate: (date) => set({ selectedDate: date }),
-  setToday: () => set({ selectedDate: format(new Date(), 'yyyy-MM-dd') }),
+  setToday: () => set({ selectedDate: formatAucklandDate() }),
 }))
