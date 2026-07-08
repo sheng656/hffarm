@@ -1,0 +1,361 @@
+'use client'
+
+import { useState, useCallback } from 'react'
+import { mutate } from 'swr'
+import { createClient } from '@/lib/supabase/client'
+import { ProductSearch } from '@/components/forms/ProductSearch'
+import { NumberStepper } from '@/components/forms/NumberStepper'
+import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Card, CardContent } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Loader2, Trash2, ChevronRight, CheckCircle2 } from 'lucide-react'
+import { toast } from 'sonner'
+import { TEAMS, CRATES, GREENHOUSES, PALLETS } from '@/lib/constants'
+import { useHarvestEntries } from '@/hooks/useHarvestEntries'
+import { useUser } from '@/hooks/useUser'
+import { format } from 'date-fns'
+import { cn } from '@/lib/utils'
+import type { Product, HarvestEntryWithProduct } from '@/lib/types'
+
+const supabase = createClient()
+const TODAY = format(new Date(), 'yyyy-MM-dd')
+
+// Combobox-style select that allows free-form input
+function FreeCombobox({
+  value, onChange, options, placeholder,
+}: {
+  value: string
+  onChange: (v: string) => void
+  options: readonly string[]
+  placeholder: string
+}) {
+  const [open, setOpen] = useState(false)
+  const filtered = options.filter(o =>
+    o.toLowerCase().includes(value.toLowerCase())
+  )
+
+  return (
+    <div className="relative">
+      <input
+        type="text"
+        value={value}
+        onChange={e => { onChange(e.target.value); setOpen(true) }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        placeholder={placeholder}
+        className="flex h-12 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      />
+      {open && filtered.length > 0 && (
+        <div className="absolute z-50 w-full mt-1 bg-white rounded-lg border border-gray-200 shadow-lg max-h-48 overflow-y-auto">
+          {filtered.map(opt => (
+            <button
+              key={opt}
+              type="button"
+              onMouseDown={() => { onChange(opt); setOpen(false) }}
+              className={cn(
+                'w-full text-left px-4 py-3 text-sm hover:bg-green-50 hover:text-green-700 transition-colors',
+                value === opt && 'bg-green-50 text-green-700 font-medium',
+              )}
+            >
+              {opt}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default function RegisterPage() {
+  const { profile, isEditor } = useUser()
+  const { data: todayEntries = [], isLoading: loadingEntries } = useHarvestEntries({ date: TODAY })
+
+  const [selectedProductId, setSelectedProductId] = useState('')
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const [team, setTeam] = useState('')
+  const [crate, setCrate] = useState('')
+  const [pallet, setPallet] = useState('NPO')
+  const [greenhouse, setGreenhouse] = useState('GH01')
+  const [bagQty, setBagQty] = useState(0)
+  const [looseQty, setLooseQty] = useState(0)
+  const [notes, setNotes] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [lastSubmitted, setLastSubmitted] = useState<string | null>(null)
+
+  const resetForm = useCallback(() => {
+    setBagQty(0)
+    setLooseQty(0)
+    setNotes('')
+    // Keep product, team, crate, pallet, greenhouse for quick re-entry
+  }, [])
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!selectedProductId) { toast.error('请选择产品'); return }
+    if (!team) { toast.error('请选择团队'); return }
+    if (!crate) { toast.error('请选择箱型'); return }
+    if (bagQty === 0 && looseQty === 0) { toast.error('包数或散数至少填一个'); return }
+
+    setSubmitting(true)
+    const { data: { user } } = await supabase.auth.getUser()
+
+    const { error } = await supabase.from('harvest_entries').insert({
+      entry_date: TODAY,
+      product_id: selectedProductId,
+      bag_qty: bagQty,
+      loose_qty: looseQty,
+      crate,
+      pallet,
+      greenhouse_no: greenhouse,
+      team,
+      notes: notes || null,
+      created_by: user?.id,
+      created_by_email: user?.email,
+    })
+
+    if (error) {
+      toast.error('提交失败', { description: error.message })
+    } else {
+      toast.success('✅ 录入成功！', {
+        description: `${selectedProduct?.factory_product_name} × ${bagQty + looseQty}`,
+      })
+      setLastSubmitted(selectedProduct?.factory_product_name ?? '')
+      resetForm()
+      // Revalidate today's entries
+      mutate(`harvest:${TODAY}:all:all`)
+      mutate(`harvest:${TODAY}:${team}:all`)
+    }
+    setSubmitting(false)
+  }
+
+  async function handleDelete(entryId: string) {
+    const { error } = await supabase.from('harvest_entries').delete().eq('id', entryId)
+    if (error) {
+      toast.error('删除失败')
+    } else {
+      toast.success('已删除')
+      mutate(`harvest:${TODAY}:all:all`)
+      mutate((key: string) => typeof key === 'string' && key.startsWith('harvest:' + TODAY), undefined, { revalidate: true })
+    }
+  }
+
+  if (!isEditor) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center gap-3">
+        <div className="text-4xl">🔒</div>
+        <h2 className="font-semibold text-lg text-gray-800">无权限录入</h2>
+        <p className="text-gray-500 text-sm">你的账号为查看权限，如需录入请联系管理员</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Form Card */}
+      <Card className="shadow-sm border-gray-100">
+        <CardContent className="pt-5">
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Product Search */}
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold text-gray-700">选择产品 *</Label>
+              <ProductSearch
+                value={selectedProductId}
+                onChange={(id, product) => {
+                  setSelectedProductId(id)
+                  setSelectedProduct(product)
+                }}
+              />
+              {selectedProduct?.stockcode && (
+                <p className="text-xs text-muted-foreground">{selectedProduct.stockcode} — {selectedProduct.exo_description}</p>
+              )}
+            </div>
+
+            {/* Team Selection */}
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold text-gray-700">团队 *</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {TEAMS.map(t => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setTeam(t)}
+                    className={cn(
+                      'h-12 rounded-xl font-bold text-lg transition-all duration-150 border-2',
+                      team === t
+                        ? 'bg-green-600 text-white border-green-600 shadow-md scale-[1.02]'
+                        : 'bg-white text-gray-700 border-gray-200 hover:border-green-300 hover:bg-green-50 active:scale-95',
+                    )}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Crate Selection */}
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold text-gray-700">箱型 *</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {CRATES.map(c => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setCrate(c)}
+                    className={cn(
+                      'h-11 rounded-xl text-sm font-medium transition-all duration-150 border-2',
+                      crate === c
+                        ? 'bg-green-600 text-white border-green-600 shadow-sm'
+                        : 'bg-white text-gray-700 border-gray-200 hover:border-green-300 hover:bg-green-50 active:scale-95',
+                    )}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Pallet + Greenhouse */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold text-gray-700">板型</Label>
+                <FreeCombobox value={pallet} onChange={setPallet} options={PALLETS} placeholder="板型" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold text-gray-700">大棚编号</Label>
+                <FreeCombobox value={greenhouse} onChange={setGreenhouse} options={GREENHOUSES} placeholder="大棚" />
+              </div>
+            </div>
+
+            {/* Bag + Loose Qty */}
+            <div className="grid grid-cols-2 gap-3">
+              <NumberStepper label="Bag（包数）" value={bagQty} onChange={setBagQty} />
+              <NumberStepper label="Loose（散数）" value={looseQty} onChange={setLooseQty} />
+            </div>
+
+            {/* Total preview */}
+            {(bagQty > 0 || looseQty > 0) && (
+              <div className="flex items-center justify-between bg-green-50 rounded-xl px-4 py-2.5">
+                <span className="text-sm text-green-700">总数量</span>
+                <span className="text-2xl font-bold text-green-700">{bagQty + looseQty}</span>
+              </div>
+            )}
+
+            {/* Notes */}
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold text-gray-700">备注（选填）</Label>
+              <Textarea
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                placeholder="如有备注请填写..."
+                className="resize-none text-base"
+                rows={2}
+              />
+            </div>
+
+            {/* Submit */}
+            <Button
+              type="submit"
+              className="w-full h-14 text-base font-bold bg-green-600 hover:bg-green-700 active:scale-[0.98] shadow-md"
+              disabled={submitting}
+            >
+              {submitting ? (
+                <><Loader2 className="w-5 h-5 mr-2 animate-spin" />提交中...</>
+              ) : (
+                '✅ 提交记录'
+              )}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      {/* Today's entries list */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">
+            今日已录入
+          </h2>
+          <span className="text-xs text-gray-400">{todayEntries.length} 条</span>
+        </div>
+
+        {loadingEntries ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
+          </div>
+        ) : todayEntries.length === 0 ? (
+          <div className="text-center py-8 text-gray-400 text-sm">今日暂无记录</div>
+        ) : (
+          <div className="space-y-2">
+            {todayEntries.map(entry => (
+              <EntryCard
+                key={entry.id}
+                entry={entry}
+                currentUserId={profile?.id ?? ''}
+                isAdmin={profile?.role === 'admin'}
+                onDelete={handleDelete}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function EntryCard({
+  entry,
+  currentUserId,
+  isAdmin,
+  onDelete,
+}: {
+  entry: HarvestEntryWithProduct
+  currentUserId: string
+  isAdmin: boolean
+  onDelete: (id: string) => void
+}) {
+  const canDelete = isAdmin || (entry.created_by === currentUserId && entry.entry_date === TODAY)
+  const [deleting, setDeleting] = useState(false)
+
+  async function handleDelete() {
+    setDeleting(true)
+    await onDelete(entry.id)
+    setDeleting(false)
+  }
+
+  return (
+    <div className="flex items-center gap-3 bg-white rounded-xl border border-gray-100 px-4 py-3 shadow-sm slide-in">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm font-medium text-gray-900 truncate">
+            {entry.product?.factory_product_name}
+          </span>
+          <Badge variant="secondary" className="text-[11px] py-0 px-1.5 h-5 bg-green-100 text-green-700 font-bold">
+            {entry.total_qty}
+          </Badge>
+        </div>
+        <div className="flex items-center gap-2 mt-1 flex-wrap text-xs text-gray-400">
+          <span className="font-semibold text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">{entry.team}</span>
+          <span>{entry.crate}</span>
+          <span>{entry.greenhouse_no}</span>
+          {entry.bag_qty > 0 && <span>Bag×{entry.bag_qty}</span>}
+          {entry.loose_qty > 0 && <span>Loose×{entry.loose_qty}</span>}
+        </div>
+      </div>
+
+      {canDelete && (
+        <button
+          onClick={handleDelete}
+          disabled={deleting}
+          className="flex-shrink-0 p-2 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 active:scale-95 transition-all"
+          aria-label="删除"
+        >
+          {deleting
+            ? <Loader2 className="w-4 h-4 animate-spin" />
+            : <Trash2 className="w-4 h-4" />
+          }
+        </button>
+      )}
+    </div>
+  )
+}
