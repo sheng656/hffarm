@@ -87,12 +87,14 @@ export function MobileNav({ isAdmin = false }: MobileNavProps) {
 
         {/* More Sheet */}
         <Sheet>
-          <SheetTrigger asChild>
-            <button className="flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-medium text-gray-400 hover:text-gray-700 active:scale-95 transition-all duration-150">
-              <MoreHorizontal className="w-5 h-5" strokeWidth={1.8} />
-              <span>更多</span>
-            </button>
-          </SheetTrigger>
+          <SheetTrigger
+            render={
+              <button className="flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-medium text-gray-400 hover:text-gray-700 active:scale-95 transition-all duration-150">
+                <MoreHorizontal className="w-5 h-5" strokeWidth={1.8} />
+                <span>更多</span>
+              </button>
+            }
+          />
           <SheetContent side="bottom" className="rounded-t-2xl pb-safe max-h-[70dvh]">
             <SheetHeader className="pb-4">
               <SheetTitle className="text-left text-base">更多功能</SheetTitle>

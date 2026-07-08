@@ -42,3 +42,6 @@ next-env.d.ts
 
 # farm files
 /farm files/
+*.sql
+*.mjs
+

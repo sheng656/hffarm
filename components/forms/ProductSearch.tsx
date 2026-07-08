@@ -34,24 +34,26 @@ export function ProductSearch({ value, onChange, placeholder = '搜索产品名�
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          className={cn(
-            'w-full h-12 justify-between text-left font-normal text-base',
-            !selectedProduct && 'text-muted-foreground',
-          )}
-        >
-          <span className="truncate">
-            {selectedProduct
-              ? selectedProduct.factory_product_name
-              : placeholder}
-          </span>
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-        </Button>
-      </PopoverTrigger>
+      <PopoverTrigger
+        render={
+          <Button
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            className={cn(
+              'w-full h-12 justify-between text-left font-normal text-base',
+              !selectedProduct && 'text-muted-foreground',
+            )}
+          >
+            <span className="truncate">
+              {selectedProduct
+                ? selectedProduct.factory_product_name
+                : placeholder}
+            </span>
+            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          </Button>
+        }
+      />
       <PopoverContent className="w-[calc(100vw-2rem)] max-w-[500px] p-0" align="start">
         <Command>
           <div className="flex items-center border-b px-3">

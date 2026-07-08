@@ -108,11 +108,11 @@ export default function UsersPage() {
                       </TableCell>
                       <TableCell className="text-gray-600 text-sm">{p.display_name ?? '—'}</TableCell>
                       <TableCell>
-                        <Select
-                          disabled={p.id === profile?.id}
-                          defaultValue={p.role}
-                          onValueChange={(val: 'admin' | 'editor' | 'viewer') => handleRoleChange(p.id, val, p.email)}
-                        >
+                          <Select
+                            disabled={p.id === profile?.id}
+                            defaultValue={p.role}
+                            onValueChange={(val) => handleRoleChange(p.id, val as any, p.email)}
+                          >
                           <SelectTrigger className="h-9">
                             <SelectValue />
                           </SelectTrigger>

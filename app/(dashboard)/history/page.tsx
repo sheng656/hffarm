@@ -40,15 +40,17 @@ export default function HistoryPage() {
     <div className="space-y-4">
       {/* Date Picker */}
       <Popover open={calOpen} onOpenChange={setCalOpen}>
-        <PopoverTrigger asChild>
-          <Button variant="outline" className="w-full h-12 text-base justify-between">
-            <div className="flex items-center gap-2">
-              <CalendarIcon className="w-4 h-4 text-green-600" />
-              {displayDate}
-            </div>
-            <ChevronDown className="w-4 h-4 text-gray-400" />
-          </Button>
-        </PopoverTrigger>
+        <PopoverTrigger
+          render={
+            <Button variant="outline" className="w-full h-12 text-base justify-between">
+              <div className="flex items-center gap-2">
+                <CalendarIcon className="w-4 h-4 text-green-600" />
+                {displayDate}
+              </div>
+              <ChevronDown className="w-4 h-4 text-gray-400" />
+            </Button>
+          }
+        />
         <PopoverContent className="w-auto p-0" align="center">
           <Calendar
             mode="single"
@@ -59,7 +61,6 @@ export default function HistoryPage() {
                 setCalOpen(false)
               }
             }}
-            initialFocus
           />
         </PopoverContent>
       </Popover>

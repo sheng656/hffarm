@@ -37,21 +37,22 @@ export default function AreaPage() {
     <div className="space-y-4">
       {/* Date Picker */}
       <Popover open={calOpen} onOpenChange={setCalOpen}>
-        <PopoverTrigger asChild>
-          <Button variant="outline" className="w-full h-12 text-base justify-between">
-            <div className="flex items-center gap-2">
-              <CalendarIcon className="w-4 h-4 text-green-600" />
-              {format(new Date(selectedDate + 'T12:00:00'), 'yyyy年MM月dd日')}
-            </div>
-            <ChevronDown className="w-4 h-4 text-gray-400" />
-          </Button>
-        </PopoverTrigger>
+        <PopoverTrigger
+          render={
+            <Button variant="outline" className="w-full h-12 text-base justify-between">
+              <div className="flex items-center gap-2">
+                <CalendarIcon className="w-4 h-4 text-green-600" />
+                {format(new Date(selectedDate + 'T12:00:00'), 'yyyy年MM月dd日')}
+              </div>
+              <ChevronDown className="w-4 h-4 text-gray-400" />
+            </Button>
+          }
+        />
         <PopoverContent className="w-auto p-0" align="center">
           <Calendar
             mode="single"
             selected={new Date(selectedDate + 'T12:00:00')}
             onSelect={date => { if (date) { setSelectedDate(format(date, 'yyyy-MM-dd')); setCalOpen(false) } }}
-            initialFocus
           />
         </PopoverContent>
       </Popover>

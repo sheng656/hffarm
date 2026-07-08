@@ -51,15 +51,17 @@ export function Header({ title, profile, rightAction }: HeaderProps) {
           {rightAction}
 
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="focus:outline-none active:scale-95 transition-transform">
-                <Avatar className="w-8 h-8">
-                  <AvatarFallback className="bg-green-100 text-green-700 text-xs font-semibold">
-                    {initials}
-                  </AvatarFallback>
-                </Avatar>
-              </button>
-            </DropdownMenuTrigger>
+            <DropdownMenuTrigger
+              render={
+                <button className="focus:outline-none active:scale-95 transition-transform">
+                  <Avatar className="w-8 h-8">
+                    <AvatarFallback className="bg-green-100 text-green-700 text-xs font-semibold">
+                      {initials}
+                    </AvatarFallback>
+                  </Avatar>
+                </button>
+              }
+            />
             <DropdownMenuContent align="end" className="w-52">
               <DropdownMenuLabel className="font-normal">
                 <div className="flex flex-col gap-1">
@@ -71,12 +73,14 @@ export function Header({ title, profile, rightAction }: HeaderProps) {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <Link href="/settings" className="cursor-pointer">
-                  <Settings className="w-4 h-4 mr-2" />
-                  修改密码
-                </Link>
-              </DropdownMenuItem>
+              <DropdownMenuItem
+                render={
+                  <Link href="/settings" className="cursor-pointer">
+                    <Settings className="w-4 h-4 mr-2" />
+                    修改密码
+                  </Link>
+                }
+              />
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={handleLogout}
