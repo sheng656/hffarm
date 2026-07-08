@@ -10,7 +10,7 @@ import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Loader2, Download, CalendarIcon, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { exportAreaDetail } from '@/lib/export-excel'
+import { exportAreaSummaryExcel } from '@/lib/export-excel'
 import { useDateFilter } from '@/stores/dateFilter'
 import type { HarvestEntryWithProduct } from '@/lib/types'
 
@@ -87,7 +87,7 @@ export default function AreaPage() {
 
       {/* Export */}
       <div className="flex justify-end">
-        <Button variant="outline" size="sm" onClick={() => exportAreaDetail(entries, selectedDate, activeArea)} className="text-xs gap-1.5">
+        <Button variant="outline" size="sm" onClick={() => exportAreaSummaryExcel(allEntries, selectedDate)} className="text-xs gap-1.5">
           <Download className="w-3.5 h-3.5" />导出 Excel
         </Button>
       </div>
