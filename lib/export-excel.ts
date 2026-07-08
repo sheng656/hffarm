@@ -245,3 +245,58 @@ export function exportDailyRegister(
   const filename = `${date}_農場成品菜登記表.xlsx`
   XLSX.writeFile(workbook, filename)
 }
+
+/**
+ * 导出全量收菜历史数据为 Excel
+ */
+export function exportAllHistory(entries: HarvestEntryWithProduct[]) {
+  const data = entries.map((e, index) => ({
+    '序号': index + 1,
+    '日期': e.entry_date,
+    '区域分类': e.area_category,
+    '大棚编号': e.greenhouse_no,
+    '团队': e.team,
+    '产品 ID': e.product?.product_id ?? '',
+    '产品名称': e.product?.factory_product_name ?? '',
+    'EXO 编码': e.product?.stockcode ?? '',
+    'EXO 描述': e.product?.exo_description ?? '',
+    'Bag (包数)': e.bag_qty || 0,
+    'Loose (散数)': e.loose_qty || 0,
+    '总数': e.total_qty || 0,
+    '箱型': e.crate,
+    '板型': e.pallet,
+    '备注': e.notes ?? '',
+    '录入人': e.created_by_email ?? '',
+    '录入时间': e.created_at ? format(new Date(e.created_at), 'yyyy-MM-dd HH:mm:ss') : ''
+  }))
+
+  const worksheet = XLSX.utils.json_to_sheet(data)
+  const workbook = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(workbook, worksheet, '全量历史收菜数据')
+
+  // Set column widths
+  const maxW = [
+    { wch: 6 },   // 序号
+    { wch: 12 },  // 日期
+    { wch: 15 },  // 区域分类
+    { wch: 10 },  // 大棚编号
+    { wch: 8 },   // 团队
+    { wch: 10 },  // 产品 ID
+    { wch: 30 },  // 产品名称
+    { wch: 12 },  // EXO 编码
+    { wch: 25 },  // EXO 描述
+    { wch: 10 },  // Bag (包数)
+    { wch: 10 },  // Loose (散数)
+    { wch: 10 },  // 总数
+    { wch: 12 },  // 箱型
+    { wch: 12 },  // 板型
+    { wch: 20 },  // 备注
+    { wch: 25 },  // 录入人
+    { wch: 20 }   // 录入时间
+  ]
+  worksheet['!cols'] = maxW
+
+  const filename = `HF_Farm_All_Harvest_History_${format(new Date(), 'yyyyMMdd_HHmmss')}.xlsx`
+  XLSX.writeFile(workbook, filename)
+}
+

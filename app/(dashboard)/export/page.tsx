@@ -10,13 +10,17 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Loader2, Download, CalendarIcon, ChevronDown, CheckCircle2, AlertCircle } from 'lucide-react'
 import { useDateFilter } from '@/stores/dateFilter'
-import { exportDailyRegister } from '@/lib/export-excel'
+import { exportDailyRegister, exportAllHistory } from '@/lib/export-excel'
 import { toast } from 'sonner'
+import { createClient } from '@/lib/supabase/client'
+import { useUser } from '@/hooks/useUser'
 
 export default function ExportPage() {
   const { selectedDate, setSelectedDate } = useDateFilter()
   const [calOpen, setCalOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [exportingHistory, setExportingHistory] = useState(false)
+  const { isAdmin } = useUser()
 
   const { data: entries = [], isLoading } = useHarvestEntries({ date: selectedDate })
 
@@ -43,6 +47,37 @@ export default function ExportPage() {
       toast.error('导出失败', { description: err?.message || '未知错误' })
     } finally {
       setExporting(false)
+    }
+  }
+
+  const handleExportHistory = async () => {
+    setExportingHistory(true)
+    try {
+      const supabase = createClient()
+      const { data: rawEntries, error } = await supabase
+        .from('harvest_entries')
+        .select(`
+          *,
+          product:products(*)
+        `)
+        .order('entry_date', { ascending: false })
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+
+      if (!rawEntries || rawEntries.length === 0) {
+        toast.warning('暂无任何历史收菜数据')
+        return
+      }
+
+      exportAllHistory(rawEntries)
+      toast.success('🎉 导出历史数据成功！', {
+        description: `已成功导出 ${rawEntries.length} 条收菜流水`
+      })
+    } catch (err: any) {
+      toast.error('导出失败', { description: err?.message || '未知错误' })
+    } finally {
+      setExportingHistory(false)
     }
   }
 
@@ -126,6 +161,41 @@ export default function ExportPage() {
           )}
         </CardContent>
       </Card>
+
+      {isAdmin && (
+        <Card className="shadow-sm border-gray-100">
+          <CardHeader>
+            <CardTitle className="text-base text-gray-800 flex items-center gap-2">
+              <span>👑 管理员专有：导出全量历史数据</span>
+            </CardTitle>
+            <CardDescription>
+              一键下载系统中所有日期、所有团队、所有大棚的完整收菜流水明细。
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-start gap-2.5 bg-blue-50 text-blue-800 rounded-xl p-3.5 text-xs">
+              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-blue-600" />
+              <div>
+                <span className="font-semibold block">包含全部历史流水</span>
+                此操作将查询数据库中的所有收菜流水（包括产品详情、录入人邮箱、录入时间等），并生成扁平化的 Excel 表格供归档和多维度分析。
+              </div>
+            </div>
+
+            <Button
+              onClick={handleExportHistory}
+              variant="outline"
+              className="w-full h-13 text-base font-semibold border-blue-200 text-blue-700 hover:bg-blue-50 hover:text-blue-800"
+              disabled={exportingHistory}
+            >
+              {exportingHistory ? (
+                <><Loader2 className="w-5 h-5 mr-2 animate-spin" />正在查询并导出...</>
+              ) : (
+                <><Download className="w-5 h-5 mr-2" />导出全部历史数据 (.xlsx)</>
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }
