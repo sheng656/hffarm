@@ -1,36 +1,142 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🌿 HF 农场成品菜管理系统 — 使用帮助
 
-## Getting Started
+欢迎使用 HF 农场成品菜收成与库存管理系统！本系统用于替代原有的 AppSheet，帮助大家更快速地录入每日收菜数据并查看汇总报表。
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## 📱 如何登录
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+1. 在手机或电脑浏览器中打开系统网址
+2. 输入你的**邮箱地址**和**密码**
+3. 点击「登录」
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+> 💡 **初始密码**：`HFfarm2026`
+> 首次登录后，请前往「⚙️ 设置」修改成自己的密码。
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## 📋 主要功能说明
 
-To learn more about Next.js, take a look at the following resources:
+### ➕ 录入收菜数据
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+**位置**：点击底部导航栏的「录入」按钮
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+录入步骤：
+1. **选择产品**：在搜索框中输入产品名称，从下拉列表中选择
+2. **选择团队**：点击你所在的团队（H / J / M / S / W / Y）
+3. **选择箱型**：选择使用的箱型（如 L47、B37 等）
+4. **选择板型**：选择板型（NPO / RED / FCC 等）
+5. **选择大棚编号**：选择收菜的大棚编号
+6. **填写数量**：
+   - **Bag（包数）**：用 `+` / `-` 按钮调整，或直接点击数字输入
+   - **Loose（散数）**：同上
+7. **备注**（可选）：填写需要备注的内容
+8. 点击**「提交」**按钮
 
-## Deploy on Vercel
+提交成功后，页面下方会显示今日已录入的记录列表。
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+> ⚠️ **注意**：录入功能只有「编辑人员」和「管理员」账号可以使用，仅查看权限的账号无法录入。
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+### 📋 今日收菜明细
+
+**位置**：点击底部导航栏的「今日」按钮
+
+- 顶部显示**今日全场总收菜量**
+- 可切换不同团队的 Tab（All / H / J / M / S / W / Y）查看各团队数据
+- 按产品名称分组显示，每个产品旁边显示该产品的汇总总数
+- 右上角可**导出 Excel 文件**
+
+---
+
+### 📅 历史收菜明细
+
+**位置**：点击底部导航栏的「历史」按钮
+
+- 点击日期选择器，选择任意一天的日期
+- 查看该日期的收菜明细，功能与「今日」页面一样
+- 可**导出 Excel 文件**
+
+---
+
+### 🗺️ 区域分类情况
+
+**位置**：点击底部导航栏的「区域」按钮
+
+- 选择日期后，查看该日期按区域汇总的收菜情况
+- 区域分类：
+  - 🏠 **棚内区域**：GH01-GH14 和 2号棚内AF200 的收菜
+  - 🌿 **户外WF03区域**：户外WF03 的收菜
+  - 🚛 **外采**：外采的菜
+  - ✈️ **进口**：进口的菜
+- 可**导出 Excel 文件**
+
+---
+
+### 📊 团队总览图
+
+**位置**：底部「更多」→「图表」
+
+- 选择日期后，查看各团队的收菜占比饼图
+- 显示每个团队的数量和全场总收菜量
+
+---
+
+### 📥 导出农场成品菜登记表
+
+**位置**：底部「更多」→「导出登记表」
+
+- 选择日期后，点击「导出 Excel」
+- 生成的表格包含：产品名称、产量汇总、棚号、出货量等信息
+- 出货量默认等于当日产量，库存默认为 0
+- **下载后请自行调整库存和出货数量**
+
+---
+
+## ⚙️ 修改密码
+
+**位置**：底部「更多」→「设置」
+
+1. 输入旧密码
+2. 输入新密码（至少 8 位）
+3. 再次确认新密码
+4. 点击「保存修改」
+
+---
+
+## 🔑 账号权限说明
+
+| 权限类型 | 说明 |
+|---------|------|
+| **管理员 (Admin)** | 可录入数据、查看所有报表、管理用户、导入/删除数据 |
+| **编辑员 (Editor)** | 可录入数据、查看所有报表、导出数据 |
+| **查看员 (Viewer)** | 只能查看报表和导出数据，不能录入 |
+
+---
+
+## ❓ 常见问题
+
+**Q：我忘记密码了怎么办？**
+A：请联系管理员（Betty 或农场主管）重置密码。
+
+**Q：我不小心填错了数据怎么办？**
+A：在「录入」页面下方的今日记录列表中，左滑或点击删除按钮可以删除当天自己录入的记录，然后重新录入正确数据。
+
+**Q：系统显示无法连接怎么办？**
+A：请检查手机网络连接是否正常，刷新页面重试。
+
+**Q：产品列表里没有我要录入的产品怎么办？**
+A：请联系管理员添加新产品。
+
+---
+
+## 📞 联系管理员
+
+如有问题请联系：
+- **ichsh48@gmail.com**
+- **betty.huforwork@gmail.com**
+
+---
+
+*HF Farm Produce Management System — 版本 1.0*
