@@ -6,7 +6,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
@@ -63,15 +62,15 @@ export function Header({ title, profile, rightAction }: HeaderProps) {
               }
             />
             <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuLabel className="font-normal">
+              <div className="px-3 py-2 text-xs font-normal text-muted-foreground">
                 <div className="flex flex-col gap-1">
-                  <p className="text-sm font-medium leading-none">{profile?.display_name ?? '—'}</p>
+                  <p className="text-sm font-medium leading-none text-gray-900">{profile?.display_name ?? '—'}</p>
                   <p className="text-xs text-muted-foreground leading-none">{profile?.email}</p>
                   {profile?.role === 'admin' && (
                     <span className="text-[10px] font-semibold text-amber-600 uppercase tracking-wide mt-0.5">管理员</span>
                   )}
                 </div>
-              </DropdownMenuLabel>
+              </div>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 render={
