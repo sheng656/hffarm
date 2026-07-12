@@ -27,9 +27,9 @@ export default function ImportPage() {
   const [preview, setPreview] = useState<any[] | null>(null)
   const [stats, setStats] = useState<{ total: number; valid: number; invalid: number } | null>(null)
   
-  // Date Mode states
-  const [dateMode, setDateMode] = useState<'original' | 'override'>('original')
-  const [overrideDate, setOverrideDate] = useState(formatAucklandDate())
+  // Date Mode states: 'original' (all) or 'filter' (specific date)
+  const [dateMode, setDateMode] = useState<'original' | 'filter'>('original')
+  const [filterDate, setFilterDate] = useState(formatAucklandDate())
   const [calOpen, setCalOpen] = useState(false)
   
   // Clear Date states
@@ -39,8 +39,9 @@ export default function ImportPage() {
   const [confirmClearOpen, setConfirmClearOpen] = useState(false)
   const [clearStatsCount, setClearStatsCount] = useState<number | null>(null)
   
-  // Duplicate count state
+  // Stats counts
   const [duplicateCount, setDuplicateCount] = useState(0)
+  const [filteredOutCount, setFilteredOutCount] = useState(0)
 
   // Map product_id (P0001) to UUID (products.id)
   const productMap = new Map<string, string>()
@@ -50,11 +51,11 @@ export default function ImportPage() {
     if (e.target.files?.[0]) {
       const selectedFile = e.target.files[0]
       setFile(selectedFile)
-      parseExcel(selectedFile, dateMode, overrideDate)
+      parseExcel(selectedFile, dateMode, filterDate)
     }
   }
 
-  const parseExcel = (file: File, selectedDateMode: 'original' | 'override', selectedOverrideDate: string) => {
+  const parseExcel = (file: File, selectedDateMode: 'original' | 'filter', selectedFilterDate: string) => {
     setParsing(true)
     const reader = new FileReader()
     reader.onload = async (e) => {
@@ -79,11 +80,7 @@ export default function ImportPage() {
         const mappedRows = rawRows.map((row, idx) => {
           const productCode = String(row.Product || '').trim()
           const uuid = productMap.get(productCode)
-
-          let entryDate = parseExcelDateToAucklandDate(row.Date)
-          if (selectedDateMode === 'override') {
-            entryDate = selectedOverrideDate
-          }
+          const entryDate = parseExcelDateToAucklandDate(row.Date)
 
           const bag = parseInt(row.Bag || row.bag || 0, 10)
           const loose = parseInt(row.Loose || row.loose || 0, 10)
@@ -92,8 +89,13 @@ export default function ImportPage() {
           const palletCode = String(row.Pallet || '').trim()
           const ghCode = String(row.GreenhouseNo || row['Greenhouse No.'] || '').trim()
 
-          // Simple structural validation rules
-          const isValid = !!uuid && !!entryDate && !!teamCode && !!crateCode && (bag > 0 || loose > 0)
+          // Date filter: if in filter mode, check if date matches selected date
+          const isDateMatched = selectedDateMode !== 'filter' || entryDate === selectedFilterDate
+
+          // Simple structural validation rules (excluding date match for now)
+          const isStructurallyValid = !!uuid && !!entryDate && !!teamCode && !!crateCode && (bag > 0 || loose > 0)
+          
+          const isValid = isStructurallyValid && isDateMatched
 
           return {
             rowNum: idx + 2,
@@ -109,7 +111,9 @@ export default function ImportPage() {
             notes: row.Notes || row.notes || null,
             created_by_email: row.CreatedBy || null,
             createdAt: row.CreatedAt instanceof Date ? row.CreatedAt.toISOString() : null,
+            isStructurallyValid,
             isValid,
+            isFilteredOut: isStructurallyValid && !isDateMatched,
           }
         })
 
@@ -132,10 +136,16 @@ export default function ImportPage() {
         let validCount = 0
         let invalidCount = 0
         let dupCount = 0
+        let filterCount = 0
 
-        // 3. Mark duplicates
+        // 3. Separate duplicates and filtered-out rows
         const processed = mappedRows.map(r => {
-          if (!r.isValid) {
+          if (r.isFilteredOut) {
+            filterCount++
+            return { ...r, isDuplicate: false }
+          }
+
+          if (!r.isStructurallyValid) {
             invalidCount++
             return { ...r, isDuplicate: false }
           }
@@ -162,7 +172,8 @@ export default function ImportPage() {
 
         setPreview(processed)
         setDuplicateCount(dupCount)
-        setStats({ total: processed.length, valid: validCount, invalid: invalidCount })
+        setFilteredOutCount(filterCount)
+        setStats({ total: processed.length, valid: validCount, invalid: invalidCount + dupCount + filterCount })
       } catch (err: any) {
         toast.error('解析 Excel 失败: ' + err.message)
       } finally {
@@ -172,18 +183,18 @@ export default function ImportPage() {
     reader.readAsArrayBuffer(file)
   }
 
-  // Trigger parsing update when dateMode or overrideDate changes
+  // Trigger parsing update when dateMode or filterDate changes
   useEffect(() => {
     if (file) {
-      parseExcel(file, dateMode, overrideDate)
+      parseExcel(file, dateMode, filterDate)
     }
-  }, [dateMode, overrideDate])
+  }, [dateMode, filterDate])
 
   const handleImport = async () => {
     if (!preview || !stats || stats.valid === 0) return
     
     setImporting(true)
-    const validRows = preview.filter(r => r.isValid && !r.isDuplicate)
+    const validRows = preview.filter(r => r.isValid && !r.isDuplicate && !r.isFilteredOut)
 
     // Insert in batches of 50
     const batchSize = 50
@@ -219,12 +230,13 @@ export default function ImportPage() {
       }
 
       if (failureCount === 0) {
-        toast.success(`成功导入 ${successCount} 条数据！` + (duplicateCount > 0 ? `（已自动过滤并跳过 ${duplicateCount} 条重复数据）` : ''))
+        toast.success(`成功导入 ${successCount} 条数据！` + (duplicateCount > 0 ? `（已过滤并跳过 ${duplicateCount} 条重复数据）` : ''))
         // Reset states
         setFile(null)
         setPreview(null)
         setStats(null)
         setDuplicateCount(0)
+        setFilteredOutCount(0)
       } else {
         toast.warning(`导入部分成功: ${successCount} 条成功, ${failureCount} 条失败`)
       }
@@ -291,6 +303,9 @@ export default function ImportPage() {
     )
   }
 
+  // Calculate actual invalid format count (total stats.invalid - duplicates - filtered)
+  const actualInvalidFormat = stats ? (stats.invalid - duplicateCount - filteredOutCount) : 0
+
   return (
     <div className="space-y-4 pb-12">
       <Card className="shadow-sm border-gray-100">
@@ -301,7 +316,7 @@ export default function ImportPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
-          {/* Date Override Config */}
+          {/* Date Selection Mode Config */}
           <div className="space-y-3 p-4 bg-gray-50/70 border border-gray-100 rounded-xl">
             <Label className="text-sm font-semibold text-gray-700 block">导入日期模式</Label>
             <div className="flex gap-2">
@@ -312,34 +327,34 @@ export default function ImportPage() {
                   'flex-1 h-10 text-xs font-semibold rounded-lg border transition-all',
                   dateMode === 'original'
                     ? 'bg-green-600 text-white border-green-600 shadow-sm'
-                    : 'bg-white text-gray-600 border-gray-200 hover:border-green-200'
+                    : 'bg-white text-gray-650 border-gray-200 hover:border-green-200'
                 )}
               >
-                使用 Excel 中的日期
+                导入 Excel 中的所有数据
               </button>
               <button
                 type="button"
-                onClick={() => setDateMode('override')}
+                onClick={() => setDateMode('filter')}
                 className={cn(
                   'flex-1 h-10 text-xs font-semibold rounded-lg border transition-all',
-                  dateMode === 'override'
+                  dateMode === 'filter'
                     ? 'bg-green-600 text-white border-green-600 shadow-sm'
-                    : 'bg-white text-gray-600 border-gray-200 hover:border-green-200'
+                    : 'bg-white text-gray-650 border-gray-200 hover:border-green-200'
                 )}
               >
-                全部强制覆盖为指定日期
+                只导入 Excel 中是指定日期的数据
               </button>
             </div>
-            {dateMode === 'override' && (
+            {dateMode === 'filter' && (
               <div className="pt-1.5 space-y-1">
-                <Label className="text-xs text-gray-500">指定导入日期</Label>
+                <Label className="text-xs text-gray-505">选择要导入的指定日期</Label>
                 <Popover open={calOpen} onOpenChange={setCalOpen}>
                   <PopoverTrigger
                     render={
                       <Button variant="outline" className="w-full h-11 justify-between text-sm bg-white">
                         <div className="flex items-center gap-2">
                           <CalendarIcon className="w-4 h-4 text-green-600" />
-                          {formatAucklandDateLabel(overrideDate)}
+                          {formatAucklandDateLabel(filterDate)}
                         </div>
                         <span className="text-xs text-gray-400">点击选择</span>
                       </Button>
@@ -348,10 +363,10 @@ export default function ImportPage() {
                   <PopoverContent className="w-auto p-0" align="center">
                     <Calendar
                       mode="single"
-                      selected={toAucklandCalendarDate(overrideDate)}
+                      selected={toAucklandCalendarDate(filterDate)}
                       onSelect={date => {
                         if (date) {
-                          setOverrideDate(formatAucklandDate(date))
+                          setFilterDate(formatAucklandDate(date))
                           setCalOpen(false)
                         }
                       }}
@@ -384,31 +399,45 @@ export default function ImportPage() {
           {parsing && (
             <div className="flex items-center justify-center py-4 gap-2 text-sm text-gray-500">
               <Loader2 className="w-4 h-4 animate-spin text-green-600" />
-              正在解析 Excel 并检测是否重复...
+              正在解析 Excel 并验证数据...
             </div>
           )}
 
           {stats && preview && (
             <div className="space-y-4">
               {/* Stat card */}
-              <div className="grid grid-cols-4 gap-2 bg-gray-50 border border-gray-100 rounded-xl p-4 text-center">
+              <div className="grid grid-cols-5 gap-1.5 bg-gray-50 border border-gray-100 rounded-xl p-3 text-center">
                 <div>
-                  <div className="text-[10px] text-gray-400 font-medium">总条数</div>
-                  <div className="text-base font-bold text-gray-800">{stats.total}</div>
+                  <div className="text-[9px] text-gray-400 font-semibold truncate">总条数</div>
+                  <div className="text-sm font-bold text-gray-800">{stats.total}</div>
                 </div>
                 <div>
-                  <div className="text-[10px] text-green-600 font-medium">可导入</div>
-                  <div className="text-base font-bold text-green-600">{stats.valid}</div>
+                  <div className="text-[9px] text-green-600 font-semibold truncate">可导入</div>
+                  <div className="text-sm font-bold text-green-600">{stats.valid}</div>
                 </div>
                 <div>
-                  <div className="text-[10px] text-amber-600 font-medium">已存在(跳过)</div>
-                  <div className="text-base font-bold text-amber-600">{duplicateCount}</div>
+                  <div className="text-[9px] text-blue-500 font-semibold truncate">日期不符</div>
+                  <div className="text-sm font-bold text-blue-500">{filteredOutCount}</div>
                 </div>
                 <div>
-                  <div className="text-[10px] text-red-500 font-medium">格式错误</div>
-                  <div className="text-base font-bold text-red-500">{stats.invalid - duplicateCount}</div>
+                  <div className="text-[9px] text-amber-600 font-semibold truncate">已存在(跳过)</div>
+                  <div className="text-sm font-bold text-amber-600">{duplicateCount}</div>
+                </div>
+                <div>
+                  <div className="text-[9px] text-red-500 font-semibold truncate">格式错误</div>
+                  <div className="text-sm font-bold text-red-500">{actualInvalidFormat}</div>
                 </div>
               </div>
+
+              {filteredOutCount > 0 && (
+                <div className="flex items-start gap-2.5 bg-blue-50/70 text-blue-900 border border-blue-100 rounded-xl p-3.5 text-xs">
+                  <AlertCircle className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <span className="font-semibold block">已跳过其他日期的记录 ({filteredOutCount} 条)</span>
+                    你开启了日期过滤模式。这 {filteredOutCount} 条记录的日期不是 {filterDate}，因此已自动排除在导入列表之外。
+                  </div>
+                </div>
+              )}
 
               {duplicateCount > 0 && (
                 <div className="flex items-start gap-2.5 bg-amber-50/70 text-amber-900 border border-amber-100 rounded-xl p-3.5 text-xs">
@@ -420,11 +449,11 @@ export default function ImportPage() {
                 </div>
               )}
 
-              {stats.invalid - duplicateCount > 0 && (
+              {actualInvalidFormat > 0 && (
                 <div className="flex items-start gap-2 bg-red-50 text-red-900 border border-red-100 rounded-xl p-3.5 text-xs">
                   <AlertTriangle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
                   <div>
-                    <span className="font-semibold block">检测到格式错误的无效数据 ({stats.invalid - duplicateCount} 条)</span>
+                    <span className="font-semibold block">检测到格式错误的无效数据 ({actualInvalidFormat} 条)</span>
                     无效数据通常是由于：产品 ID 不在产品库中，日期缺失，团队或箱型格式不正确，或者数量全部为 0。<strong>只有有效且不重复的数据会被导入。</strong>
                   </div>
                 </div>
@@ -434,7 +463,7 @@ export default function ImportPage() {
                 <div className="flex gap-2">
                   <Button
                     variant="outline"
-                    onClick={() => { setFile(null); setPreview(null); setStats(null); setDuplicateCount(0) }}
+                    onClick={() => { setFile(null); setPreview(null); setStats(null); setDuplicateCount(0); setFilteredOutCount(0) }}
                     className="flex-1 h-12"
                     disabled={importing}
                   >
@@ -475,7 +504,7 @@ export default function ImportPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label className="text-xs text-gray-500">选择要清除数据的日期</Label>
+            <Label className="text-xs text-gray-505">选择要清除数据的日期</Label>
             <Popover open={deleteCalOpen} onOpenChange={setDeleteCalOpen}>
               <PopoverTrigger
                 render={
@@ -531,7 +560,7 @@ export default function ImportPage() {
             </div>
 
             <div className="p-6 space-y-4">
-              <div className="text-sm text-gray-600 leading-relaxed">
+              <div className="text-sm text-gray-650 leading-relaxed">
                 你选择清除 <span className="font-bold text-red-600">{formatAucklandDateLabel(deleteDate)}</span> 的全部收菜记录。
                 <br />
                 经查询，该日期目前在库中共有 <span className="font-extrabold text-red-600 text-base">{clearStatsCount}</span> 条数据。
