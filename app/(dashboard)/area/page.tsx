@@ -9,15 +9,18 @@ import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Loader2, Download, CalendarIcon, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { exportAreaSummaryExcel } from '@/lib/export-excel'
+import { exportAreaSummaryExcel, exportAreaWeeklySummaryExcel } from '@/lib/export-excel'
 import { useDateFilter } from '@/stores/dateFilter'
 import { formatAucklandDate, formatAucklandDateLabel, toAucklandCalendarDate } from '@/lib/auckland-time'
 import type { HarvestEntryWithProduct } from '@/lib/types'
+import { createClient } from '@/lib/supabase/client'
+import { toast } from 'sonner'
 
 export default function AreaPage() {
   const { selectedDate, setSelectedDate } = useDateFilter()
   const [calOpen, setCalOpen] = useState(false)
   const [activeArea, setActiveArea] = useState('all')
+  const [exportingWeekly, setExportingWeekly] = useState(false)
 
   const { data: allEntries = [], isLoading } = useHarvestEntries({ date: selectedDate })
   const entries = activeArea === 'all'
@@ -32,6 +35,59 @@ export default function AreaPage() {
 
   // Group by product name within active area
   const grouped = groupByProduct(entries)
+
+  // Helper to get week range Monday-Sunday for a date
+  function getAucklandWeekRange(dateStr: string) {
+    const [year, month, day] = dateStr.split('-').map(Number)
+    const d = new Date(year, month - 1, day, 12, 0, 0)
+    const currentDay = d.getDay()
+    const diffToMonday = currentDay === 0 ? -6 : 1 - currentDay
+    
+    const monday = new Date(d)
+    monday.setDate(d.getDate() + diffToMonday)
+    
+    const sunday = new Date(monday)
+    sunday.setDate(monday.getDate() + 6)
+    
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const formatDate = (date: Date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+    
+    return {
+      mondayStr: formatDate(monday),
+      sundayStr: formatDate(sunday),
+    }
+  }
+
+  const handleExportWeekly = async () => {
+    setExportingWeekly(true)
+    const { mondayStr, sundayStr } = getAucklandWeekRange(selectedDate)
+    
+    try {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from('harvest_entries')
+        .select('*, product:products(*)')
+        .gte('entry_date', mondayStr)
+        .lte('entry_date', sundayStr)
+        .order('entry_date', { ascending: true })
+
+      if (error) throw error
+
+      if (!data || data.length === 0) {
+        toast.warning(`周一 ${mondayStr} 至 周日 ${sundayStr} 暂无任何收菜记录`)
+        return
+      }
+
+      exportAreaWeeklySummaryExcel(data as HarvestEntryWithProduct[], mondayStr, sundayStr)
+      toast.success('周汇总导出成功', {
+        description: `已生成 ${mondayStr}_至_${sundayStr}_区域周收成汇总表.xlsx`,
+      })
+    } catch (err: any) {
+      toast.error('导出失败', { description: err.message })
+    } finally {
+      setExportingWeekly(false)
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -86,9 +142,23 @@ export default function AreaPage() {
       </div>
 
       {/* Export */}
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
         <Button variant="outline" size="sm" onClick={() => exportAreaSummaryExcel(allEntries, selectedDate)} className="text-xs gap-1.5">
-          <Download className="w-3.5 h-3.5" />导出 Excel
+          <Download className="w-3.5 h-3.5" />导出单天汇总
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleExportWeekly}
+          disabled={exportingWeekly}
+          className="text-xs gap-1.5"
+        >
+          {exportingWeekly ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <Download className="w-3.5 h-3.5" />
+          )}
+          导出周报 (周一至周日)
         </Button>
       </div>
 

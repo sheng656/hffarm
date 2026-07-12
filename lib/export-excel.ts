@@ -368,21 +368,21 @@ export function exportAreaSummaryExcel(
   // 1. Title Row
   wsData.push([
     createCell(`HF 农场成品菜区域分类收成汇总表`, { bold: true, fontSize: 14 }),
-    ...Array(6).fill(null).map(() => createCell('', {}))
+    ...Array(4).fill(null).map(() => createCell('', {}))
   ])
   
   // 2. Date Row
   wsData.push([
     createCell(`日期: ${date}`, { fontSize: 11, color: "4B5563" }),
-    ...Array(6).fill(null).map(() => createCell('', {}))
+    ...Array(4).fill(null).map(() => createCell('', {}))
   ])
   
   // 3. Empty spacer row
-  wsData.push(Array(7).fill(null).map(() => createCell('', {})))
+  wsData.push(Array(5).fill(null).map(() => createCell('', {})))
   
   const merges = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: 6 } }, // Title merge
-    { s: { r: 1, c: 0 }, e: { r: 1, c: 6 } }  // Date merge
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }, // Title merge
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } }  // Date merge
   ]
   
   categories.forEach(cat => {
@@ -415,8 +415,6 @@ export function exportAreaSummaryExcel(
       createCell(catBag || '', { bold: true, bg: "374151", color: "FFFFFF", fontSize: 11, align: "right" }),
       createCell(catLoose || '', { bold: true, bg: "374151", color: "FFFFFF", fontSize: 11, align: "right" }),
       createCell('', { bg: "374151" }),
-      createCell('', { bg: "374151" }),
-      createCell('', { bg: "374151" }),
       createCell(catTotal, { bold: true, bg: "374151", color: "FFFFFF", fontSize: 11, align: "right" })
     ]
     wsData.push(catHeaderRow)
@@ -426,9 +424,7 @@ export function exportAreaSummaryExcel(
       createCell('产品名称', { bold: true, bg: "E5E7EB", color: "374151", border: true }),
       createCell('BAG (包数)', { bold: true, bg: "E5E7EB", color: "374151", border: true, align: "right" }),
       createCell('Loose (散数)', { bold: true, bg: "E5E7EB", color: "374151", border: true, align: "right" }),
-      createCell('箱型', { bold: true, bg: "E5E7EB", color: "374151", border: true, align: "center" }),
       createCell('棚号', { bold: true, bg: "E5E7EB", color: "374151", border: true, align: "center" }),
-      createCell('备注', { bold: true, bg: "E5E7EB", color: "374151", border: true }),
       createCell('总数量', { bold: true, bg: "E5E7EB", color: "374151", border: true, align: "right" })
     ]
     wsData.push(colHeaders)
@@ -447,36 +443,23 @@ export function exportAreaSummaryExcel(
         pTotal += e.total_qty || 0
       })
       
+      // Greenhouses: aggregate, deduplicate, sort, join with &
+      const pGreenhouses = Array.from(new Set(pEntries.map(e => e.greenhouse_no).filter(Boolean))).sort().join('&')
+      
       // Product Summary Row (Soft Sage Green background, dark green bold text)
       const pSummaryRow = [
         createCell(pName, { bold: true, bg: "C8E6C9", color: "1B5E20", border: true }),
         createCell(pBag || '', { bold: true, bg: "C8E6C9", color: "1B5E20", border: true, align: "right" }),
         createCell(pLoose || '', { bold: true, bg: "C8E6C9", color: "1B5E20", border: true, align: "right" }),
-        createCell('', { bg: "C8E6C9", border: true }),
-        createCell('', { bg: "C8E6C9", border: true }),
-        createCell('', { bg: "C8E6C9", border: true }),
+        createCell(pGreenhouses, { bg: "C8E6C9", border: true, align: "center" }),
         createCell(pTotal, { bold: true, bg: "C8E6C9", color: "1B5E20", border: true, align: "right" })
       ]
       wsData.push(pSummaryRow)
-      
-      // Product Details Rows (Indented Name, regular text, thin borders)
-      pEntries.forEach(e => {
-        const detailRow = [
-          createCell(`  - ${pName}`, { color: "4B5563", border: true }),
-          createCell(e.bag_qty || '', { border: true, align: "right" }),
-          createCell(e.loose_qty || '', { border: true, align: "right" }),
-          createCell(e.crate, { border: true, align: "center" }),
-          createCell(e.greenhouse_no, { border: true, align: "center" }),
-          createCell(e.notes || '', { border: true }),
-          createCell(e.total_qty, { border: true, align: "right" })
-        ]
-        wsData.push(detailRow)
-      })
     })
     
     // Add two blank spacer rows between categories
-    wsData.push(Array(7).fill(null).map(() => createCell('', {})))
-    wsData.push(Array(7).fill(null).map(() => createCell('', {})))
+    wsData.push(Array(5).fill(null).map(() => createCell('', {})))
+    wsData.push(Array(5).fill(null).map(() => createCell('', {})))
   })
   
   const worksheet = XLSX.utils.aoa_to_sheet(wsData)
@@ -487,9 +470,7 @@ export function exportAreaSummaryExcel(
     { wch: 35 }, // 产品名称
     { wch: 12 }, // BAG
     { wch: 12 }, // Loose
-    { wch: 12 }, // 箱型
-    { wch: 15 }, // 棚号
-    { wch: 25 }, // 备注
+    { wch: 20 }, // 棚号
     { wch: 12 }  // 总数量
   ]
   
@@ -498,6 +479,108 @@ export function exportAreaSummaryExcel(
   
   // Generate filename: YYYY-MM-DD_区域收成汇总表.xlsx
   const filename = `${date}_区域收成汇总表.xlsx`
+  XLSX.writeFile(workbook, filename)
+}
+
+/**
+ * 导出按区域分类垂直布局的 Excel 周汇总表
+ */
+export function exportAreaWeeklySummaryExcel(
+  entries: HarvestEntryWithProduct[],
+  startDate: string,
+  endDate: string
+) {
+  const categories = ['棚内区域', '户外WF03区域', '外采', '进口', '其他']
+  const wsData: any[][] = []
+  
+  // 1. Title Row
+  wsData.push([
+    createCell(`HF 农场成品菜区域分类周汇总表`, { bold: true, fontSize: 14 }),
+    createCell('', {})
+  ])
+  
+  // 2. Date Row
+  wsData.push([
+    createCell(`日期范围: ${startDate} ~ ${endDate}`, { fontSize: 11, color: "4B5563" }),
+    createCell('', {})
+  ])
+  
+  // 3. Empty spacer row
+  wsData.push(Array(2).fill(null).map(() => createCell('', {})))
+  
+  const merges = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }, // Title merge (2 columns)
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 1 } }  // Date merge
+  ]
+  
+  categories.forEach(cat => {
+    const catEntries = entries.filter(e => e.area_category === cat)
+    if (catEntries.length === 0) return
+    
+    // Group entries by product name
+    const productMap = new Map<string, HarvestEntryWithProduct[]>()
+    catEntries.forEach(e => {
+      const name = e.product?.factory_product_name ?? e.product_id
+      if (!productMap.has(name)) productMap.set(name, [])
+      productMap.get(name)!.push(e)
+    })
+    
+    const sortedProducts = Array.from(productMap.keys()).sort((a, b) => a.localeCompare(b))
+    
+    // Calculate category totals
+    let catTotal = 0
+    catEntries.forEach(e => {
+      catTotal += e.total_qty || 0
+    })
+    
+    // Header for Category with Totals (Slate Gray background, white bold text)
+    const catHeaderRow = [
+      createCell(`【${cat}】`, { bold: true, bg: "374151", color: "FFFFFF", fontSize: 11 }),
+      createCell(catTotal, { bold: true, bg: "374151", color: "FFFFFF", fontSize: 11, align: "right" })
+    ]
+    wsData.push(catHeaderRow)
+    
+    // Table column headers
+    const colHeaders = [
+      createCell('产品名称', { bold: true, bg: "E5E7EB", color: "374151", border: true }),
+      createCell('总数量', { bold: true, bg: "E5E7EB", color: "374151", border: true, align: "right" })
+    ]
+    wsData.push(colHeaders)
+    
+    // Write product rows
+    sortedProducts.forEach(pName => {
+      const pEntries = productMap.get(pName)!
+      let pTotal = 0
+      pEntries.forEach(e => {
+        pTotal += e.total_qty || 0
+      })
+      
+      const pSummaryRow = [
+        createCell(pName, { bold: true, bg: "C8E6C9", color: "1B5E20", border: true }),
+        createCell(pTotal, { bold: true, bg: "C8E6C9", color: "1B5E20", border: true, align: "right" })
+      ]
+      wsData.push(pSummaryRow)
+    })
+    
+    // Add two blank spacer rows between categories
+    wsData.push(Array(2).fill(null).map(() => createCell('', {})))
+    wsData.push(Array(2).fill(null).map(() => createCell('', {})))
+  })
+  
+  const worksheet = XLSX.utils.aoa_to_sheet(wsData)
+  worksheet['!merges'] = merges
+  
+  // Set column widths
+  worksheet['!cols'] = [
+    { wch: 45 }, // 产品名称
+    { wch: 15 }  // 总数量
+  ]
+  
+  const workbook = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(workbook, worksheet, '区域周收成汇总')
+  
+  // Generate filename: startDate_至_endDate_区域周收成汇总表.xlsx
+  const filename = `${startDate}_至_${endDate}_区域周收成汇总表.xlsx`
   XLSX.writeFile(workbook, filename)
 }
 

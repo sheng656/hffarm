@@ -28,17 +28,37 @@ export default function TodayPage() {
   }, {} as Record<string, number>)
 
   const grandTotal = allEntries.reduce((s, e) => s + e.total_qty, 0)
+  const uniquePalletIds = Array.from(new Set(allEntries.map(e => e.pallet_id).filter(Boolean)))
+  const palletCount = uniquePalletIds.length
 
   // Group by product
   const grouped = groupByProduct(entries)
 
   return (
     <div className="space-y-4">
-      {/* Grand Total Card */}
-      <div className="bg-gradient-to-br from-green-600 to-emerald-700 rounded-2xl p-5 text-white shadow-lg">
-        <p className="text-sm font-medium text-green-100">今日全场总收菜量</p>
-        <p className="text-5xl font-black mt-1 tracking-tight">{grandTotal}</p>
-        <p className="text-xs text-green-200 mt-1">{formatAucklandDateLabel()}</p>
+      {/* Stats Grid */}
+      <div className="grid grid-cols-3 gap-2">
+        <div className="bg-gradient-to-br from-green-600 to-emerald-700 rounded-2xl p-4 text-white shadow-md flex flex-col justify-between">
+          <div>
+            <p className="text-[10px] font-semibold text-green-100 uppercase tracking-wider">今日总产量</p>
+            <p className="text-2xl font-black mt-1 tracking-tight">{grandTotal}</p>
+          </div>
+          <p className="text-[9px] text-green-200 mt-2 truncate">{formatAucklandDateLabel()}</p>
+        </div>
+        <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+          <div>
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">今日使用板数</p>
+            <p className="text-2xl font-black mt-1 text-gray-800 tracking-tight">{palletCount}</p>
+          </div>
+          <p className="text-[9px] text-gray-400 mt-2 truncate">物理打板统计</p>
+        </div>
+        <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+          <div>
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">今日使用筐数</p>
+            <p className="text-2xl font-black mt-1 text-gray-800 tracking-tight">{grandTotal}</p>
+          </div>
+          <p className="text-[9px] text-gray-400 mt-2 truncate">总包装筐数</p>
+        </div>
       </div>
 
       {/* Team Tabs */}

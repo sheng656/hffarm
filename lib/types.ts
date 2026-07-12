@@ -1,6 +1,6 @@
 // All shared TypeScript types for the HF Farm app
 
-export type UserRole = 'admin' | 'editor' | 'viewer'
+export type UserRole = 'superadmin' | 'admin' | 'editor' | 'viewer'
 
 export interface UserProfile {
   id: string
@@ -31,6 +31,7 @@ export interface HarvestEntry {
   total_qty: number
   crate: string
   pallet: string
+  pallet_id: string | null
   greenhouse_no: string
   area_category: AreaCategory
   team: string
@@ -42,6 +43,19 @@ export interface HarvestEntry {
 
 export interface HarvestEntryWithProduct extends HarvestEntry {
   product: Product
+}
+
+export interface PalletRecord {
+  id: string
+  entry_date: string
+  pallet_type: string
+  created_by: string | null
+  created_by_email: string | null
+  created_at: string
+}
+
+export interface PalletWithEntries extends PalletRecord {
+  entries: HarvestEntryWithProduct[]
 }
 
 // Form input type for creating a harvest entry

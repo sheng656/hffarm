@@ -20,7 +20,7 @@ export const GREENHOUSES = [
 ] as const
 export type Greenhouse = string
 
-export const ROLES = ['admin', 'editor', 'viewer'] as const
+export const ROLES = ['superadmin', 'admin', 'editor', 'viewer'] as const
 export type Role = (typeof ROLES)[number]
 
 export const AREA_CATEGORIES = ['棚内区域', '户外WF03区域', '外采', '进口', '其他'] as const

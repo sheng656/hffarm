@@ -6,7 +6,7 @@ import { useUser } from '@/hooks/useUser'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Loader2, ShieldAlert } from 'lucide-react'
+import { Loader2, ShieldAlert, Crown, Lock } from 'lucide-react'
 import { toast } from 'sonner'
 import type { UserProfile } from '@/lib/types'
 
@@ -42,6 +42,17 @@ export default function UsersPage() {
   async function handleRoleChange(profileId: string, newRole: 'admin' | 'editor' | 'viewer', email: string) {
     if (profileId === profile?.id) {
       toast.warning('你无法修改自己的角色')
+      return
+    }
+
+    const targetProfile = profiles.find(p => p.id === profileId)
+    if (targetProfile?.role === 'superadmin') {
+      toast.error('超级管理员权限不可修改')
+      return
+    }
+
+    if (targetProfile?.role === 'admin' && profile?.role !== 'superadmin') {
+      toast.warning('只有超级管理员才能修改管理员的权限')
       return
     }
 
@@ -107,21 +118,33 @@ export default function UsersPage() {
                         {p.email}
                       </TableCell>
                       <TableCell className="text-gray-600 text-sm">{p.display_name ?? '—'}</TableCell>
-                      <TableCell>
+                       <TableCell>
+                        {p.role === 'superadmin' ? (
+                          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 text-xs font-semibold w-fit border border-indigo-100">
+                            <Crown className="w-3.5 h-3.5" />
+                            超级管理员
+                          </div>
+                        ) : p.role === 'admin' && profile?.role !== 'superadmin' ? (
+                          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 text-amber-700 text-xs font-semibold w-fit border border-amber-100">
+                            <Lock className="w-3.5 h-3.5" />
+                            管理员
+                          </div>
+                        ) : (
                           <Select
                             disabled={p.id === profile?.id}
                             defaultValue={p.role}
                             onValueChange={(val) => handleRoleChange(p.id, val as any, p.email)}
                           >
-                          <SelectTrigger className="h-9">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="admin">管理员 (Admin)</SelectItem>
-                            <SelectItem value="editor">编辑员 (Editor)</SelectItem>
-                            <SelectItem value="viewer">查看员 (Viewer)</SelectItem>
-                          </SelectContent>
-                        </Select>
+                            <SelectTrigger className="h-9">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="admin">管理员 (Admin)</SelectItem>
+                              <SelectItem value="editor">编辑员 (Editor)</SelectItem>
+                              <SelectItem value="viewer">查看员 (Viewer)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}

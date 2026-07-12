@@ -29,8 +29,9 @@ export function useUser() {
     user: data?.user ?? null,
     profile: data?.profile ?? null,
     role: data?.profile?.role ?? null,
-    isAdmin: data?.profile?.role === 'admin',
-    isEditor: data?.profile?.role === 'admin' || data?.profile?.role === 'editor',
+    isAdmin: data?.profile?.role === 'admin' || data?.profile?.role === 'superadmin',
+    isSuperAdmin: data?.profile?.role === 'superadmin',
+    isEditor: data?.profile?.role === 'admin' || data?.profile?.role === 'superadmin' || data?.profile?.role === 'editor',
     isLoading,
     error,
   }

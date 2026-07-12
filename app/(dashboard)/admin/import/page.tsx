@@ -1,16 +1,19 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import * as XLSX from 'xlsx'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { useProducts } from '@/hooks/useProducts'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Loader2, Upload, FileUp, CheckCircle, AlertTriangle, ShieldAlert } from 'lucide-react'
+import { Label } from '@/components/ui/label'
+import { Calendar } from '@/components/ui/calendar'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Loader2, Upload, FileUp, CheckCircle, AlertTriangle, ShieldAlert, CalendarIcon, Trash2, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { parseExcelDateToAucklandDate } from '@/lib/auckland-time'
+import { parseExcelDateToAucklandDate, formatAucklandDate, formatAucklandDateLabel, toAucklandCalendarDate } from '@/lib/auckland-time'
 
 const supabase = createClient()
 
@@ -23,6 +26,21 @@ export default function ImportPage() {
   const [importing, setImporting] = useState(false)
   const [preview, setPreview] = useState<any[] | null>(null)
   const [stats, setStats] = useState<{ total: number; valid: number; invalid: number } | null>(null)
+  
+  // Date Mode states
+  const [dateMode, setDateMode] = useState<'original' | 'override'>('original')
+  const [overrideDate, setOverrideDate] = useState(formatAucklandDate())
+  const [calOpen, setCalOpen] = useState(false)
+  
+  // Clear Date states
+  const [deleteDate, setDeleteDate] = useState(formatAucklandDate())
+  const [deleteCalOpen, setDeleteCalOpen] = useState(false)
+  const [clearing, setClearing] = useState(false)
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false)
+  const [clearStatsCount, setClearStatsCount] = useState<number | null>(null)
+  
+  // Duplicate count state
+  const [duplicateCount, setDuplicateCount] = useState(0)
 
   // Map product_id (P0001) to UUID (products.id)
   const productMap = new Map<string, string>()
@@ -32,19 +50,19 @@ export default function ImportPage() {
     if (e.target.files?.[0]) {
       const selectedFile = e.target.files[0]
       setFile(selectedFile)
-      parseExcel(selectedFile)
+      parseExcel(selectedFile, dateMode, overrideDate)
     }
   }
 
-  const parseExcel = (file: File) => {
+  const parseExcel = (file: File, selectedDateMode: 'original' | 'override', selectedOverrideDate: string) => {
     setParsing(true)
     const reader = new FileReader()
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const data = new Uint8Array(e.target?.result as ArrayBuffer)
         const workbook = XLSX.read(data, { type: 'array', cellDates: true })
         
-        // Let's find sheet
+        // Find sheet
         const sheetName = workbook.SheetNames.find(n => n.toLowerCase() === 'register') || workbook.SheetNames[0]
         const worksheet = workbook.Sheets[sheetName]
         
@@ -57,15 +75,15 @@ export default function ImportPage() {
           return
         }
 
-        // Map and validate
-        let validCount = 0
-        let invalidCount = 0
-
-        const processed = rawRows.map((row, idx) => {
+        // 1. Map and structurally validate first
+        const mappedRows = rawRows.map((row, idx) => {
           const productCode = String(row.Product || '').trim()
           const uuid = productMap.get(productCode)
 
-          const entryDate = parseExcelDateToAucklandDate(row.Date)
+          let entryDate = parseExcelDateToAucklandDate(row.Date)
+          if (selectedDateMode === 'override') {
+            entryDate = selectedOverrideDate
+          }
 
           const bag = parseInt(row.Bag || row.bag || 0, 10)
           const loose = parseInt(row.Loose || row.loose || 0, 10)
@@ -74,11 +92,8 @@ export default function ImportPage() {
           const palletCode = String(row.Pallet || '').trim()
           const ghCode = String(row.GreenhouseNo || row['Greenhouse No.'] || '').trim()
 
-          // Simple validation rules
+          // Simple structural validation rules
           const isValid = !!uuid && !!entryDate && !!teamCode && !!crateCode && (bag > 0 || loose > 0)
-
-          if (isValid) validCount++
-          else invalidCount++
 
           return {
             rowNum: idx + 2,
@@ -98,7 +113,55 @@ export default function ImportPage() {
           }
         })
 
+        // 2. Fetch existing records for duplicate check
+        const uniqueDates = Array.from(new Set(mappedRows.filter(r => r.isValid && r.entryDate).map(r => r.entryDate))) as string[]
+        
+        let existing: any[] = []
+        if (uniqueDates.length > 0) {
+          const { data: dbRows, error: dbError } = await supabase
+            .from('harvest_entries')
+            .select('entry_date, product_id, bag_qty, loose_qty, team, greenhouse_no, crate')
+            .in('entry_date', uniqueDates)
+          if (dbError) {
+            console.error('Failed to query existing records:', dbError)
+          } else {
+            existing = dbRows || []
+          }
+        }
+
+        let validCount = 0
+        let invalidCount = 0
+        let dupCount = 0
+
+        // 3. Mark duplicates
+        const processed = mappedRows.map(r => {
+          if (!r.isValid) {
+            invalidCount++
+            return { ...r, isDuplicate: false }
+          }
+
+          // Duplicate condition: exact match on date, product, qty, team, greenhouse, crate
+          const isDuplicate = existing.some(ex => 
+            ex.entry_date === r.entryDate &&
+            ex.product_id === r.productId &&
+            ex.bag_qty === r.bagQty &&
+            ex.loose_qty === r.looseQty &&
+            ex.team === r.team &&
+            ex.greenhouse_no === r.greenhouseNo &&
+            ex.crate === r.crate
+          )
+
+          if (isDuplicate) {
+            dupCount++
+            return { ...r, isDuplicate: true, isValid: false } // Mark as invalid/duplicate so we skip it
+          } else {
+            validCount++
+            return { ...r, isDuplicate: false }
+          }
+        })
+
         setPreview(processed)
+        setDuplicateCount(dupCount)
         setStats({ total: processed.length, valid: validCount, invalid: invalidCount })
       } catch (err: any) {
         toast.error('解析 Excel 失败: ' + err.message)
@@ -109,11 +172,18 @@ export default function ImportPage() {
     reader.readAsArrayBuffer(file)
   }
 
+  // Trigger parsing update when dateMode or overrideDate changes
+  useEffect(() => {
+    if (file) {
+      parseExcel(file, dateMode, overrideDate)
+    }
+  }, [dateMode, overrideDate])
+
   const handleImport = async () => {
     if (!preview || !stats || stats.valid === 0) return
     
     setImporting(true)
-    const validRows = preview.filter(r => r.isValid)
+    const validRows = preview.filter(r => r.isValid && !r.isDuplicate)
 
     // Insert in batches of 50
     const batchSize = 50
@@ -149,11 +219,12 @@ export default function ImportPage() {
       }
 
       if (failureCount === 0) {
-        toast.success(`成功导入 ${successCount} 条数据！`)
+        toast.success(`成功导入 ${successCount} 条数据！` + (duplicateCount > 0 ? `（已自动过滤并跳过 ${duplicateCount} 条重复数据）` : ''))
         // Reset states
         setFile(null)
         setPreview(null)
         setStats(null)
+        setDuplicateCount(0)
       } else {
         toast.warning(`导入部分成功: ${successCount} 条成功, ${failureCount} 条失败`)
       }
@@ -161,6 +232,44 @@ export default function ImportPage() {
       toast.error('导入失败: ' + err.message)
     } finally {
       setImporting(false)
+    }
+  }
+
+  // Clear Date handlers
+  const handleClearDateQuery = async () => {
+    setClearing(true)
+    try {
+      const { count, error } = await supabase
+        .from('harvest_entries')
+        .select('*', { count: 'exact', head: true })
+        .eq('entry_date', deleteDate)
+      if (error) throw error
+
+      setClearStatsCount(count || 0)
+      setConfirmClearOpen(true)
+    } catch (err: any) {
+      toast.error('查询数据失败: ' + err.message)
+    } finally {
+      setClearing(false)
+    }
+  }
+
+  const handleClearDateExecute = async () => {
+    setClearing(true)
+    setConfirmClearOpen(false)
+    try {
+      const { error } = await supabase
+        .from('harvest_entries')
+        .delete()
+        .eq('entry_date', deleteDate)
+      if (error) throw error
+
+      toast.success(`成功清除 ${deleteDate} 的所有收菜数据！`)
+      setClearStatsCount(null)
+    } catch (err: any) {
+      toast.error('清除失败: ' + err.message)
+    } finally {
+      setClearing(false)
     }
   }
 
@@ -183,7 +292,7 @@ export default function ImportPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pb-12">
       <Card className="shadow-sm border-gray-100">
         <CardHeader>
           <CardTitle className="text-base">导入收菜数据流水</CardTitle>
@@ -192,6 +301,67 @@ export default function ImportPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
+          {/* Date Override Config */}
+          <div className="space-y-3 p-4 bg-gray-50/70 border border-gray-100 rounded-xl">
+            <Label className="text-sm font-semibold text-gray-700 block">导入日期模式</Label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setDateMode('original')}
+                className={cn(
+                  'flex-1 h-10 text-xs font-semibold rounded-lg border transition-all',
+                  dateMode === 'original'
+                    ? 'bg-green-600 text-white border-green-600 shadow-sm'
+                    : 'bg-white text-gray-600 border-gray-200 hover:border-green-200'
+                )}
+              >
+                使用 Excel 中的日期
+              </button>
+              <button
+                type="button"
+                onClick={() => setDateMode('override')}
+                className={cn(
+                  'flex-1 h-10 text-xs font-semibold rounded-lg border transition-all',
+                  dateMode === 'override'
+                    ? 'bg-green-600 text-white border-green-600 shadow-sm'
+                    : 'bg-white text-gray-600 border-gray-200 hover:border-green-200'
+                )}
+              >
+                全部强制覆盖为指定日期
+              </button>
+            </div>
+            {dateMode === 'override' && (
+              <div className="pt-1.5 space-y-1">
+                <Label className="text-xs text-gray-500">指定导入日期</Label>
+                <Popover open={calOpen} onOpenChange={setCalOpen}>
+                  <PopoverTrigger
+                    render={
+                      <Button variant="outline" className="w-full h-11 justify-between text-sm bg-white">
+                        <div className="flex items-center gap-2">
+                          <CalendarIcon className="w-4 h-4 text-green-600" />
+                          {formatAucklandDateLabel(overrideDate)}
+                        </div>
+                        <span className="text-xs text-gray-400">点击选择</span>
+                      </Button>
+                    }
+                  />
+                  <PopoverContent className="w-auto p-0" align="center">
+                    <Calendar
+                      mode="single"
+                      selected={toAucklandCalendarDate(overrideDate)}
+                      onSelect={date => {
+                        if (date) {
+                          setOverrideDate(formatAucklandDate(date))
+                          setCalOpen(false)
+                        }
+                      }}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
+          </div>
+
           {/* Upload Box */}
           <div className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center bg-gray-50/50 hover:bg-gray-50 hover:border-green-300 transition-colors relative cursor-pointer">
             <input
@@ -214,34 +384,48 @@ export default function ImportPage() {
           {parsing && (
             <div className="flex items-center justify-center py-4 gap-2 text-sm text-gray-500">
               <Loader2 className="w-4 h-4 animate-spin text-green-600" />
-              正在解析 Excel 并验证数据...
+              正在解析 Excel 并检测是否重复...
             </div>
           )}
 
           {stats && preview && (
             <div className="space-y-4">
               {/* Stat card */}
-              <div className="grid grid-cols-3 gap-2 bg-gray-50 border border-gray-100 rounded-xl p-4 text-center">
+              <div className="grid grid-cols-4 gap-2 bg-gray-50 border border-gray-100 rounded-xl p-4 text-center">
                 <div>
-                  <div className="text-xs text-gray-400 font-medium">总数据</div>
-                  <div className="text-lg font-bold text-gray-800">{stats.total}</div>
+                  <div className="text-[10px] text-gray-400 font-medium">总条数</div>
+                  <div className="text-base font-bold text-gray-800">{stats.total}</div>
                 </div>
                 <div>
-                  <div className="text-xs text-green-600 font-medium">有效格式</div>
-                  <div className="text-lg font-bold text-green-600">{stats.valid}</div>
+                  <div className="text-[10px] text-green-600 font-medium">可导入</div>
+                  <div className="text-base font-bold text-green-600">{stats.valid}</div>
                 </div>
                 <div>
-                  <div className="text-xs text-red-500 font-medium">无效格式</div>
-                  <div className="text-lg font-bold text-red-500">{stats.invalid}</div>
+                  <div className="text-[10px] text-amber-600 font-medium">已存在(跳过)</div>
+                  <div className="text-base font-bold text-amber-600">{duplicateCount}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-red-500 font-medium">格式错误</div>
+                  <div className="text-base font-bold text-red-500">{stats.invalid - duplicateCount}</div>
                 </div>
               </div>
 
-              {stats.invalid > 0 && (
-                <div className="flex items-start gap-2 bg-amber-50 text-amber-900 border border-amber-100 rounded-xl p-3.5 text-xs">
-                  <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+              {duplicateCount > 0 && (
+                <div className="flex items-start gap-2.5 bg-amber-50/70 text-amber-900 border border-amber-100 rounded-xl p-3.5 text-xs">
+                  <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
                   <div>
-                    <span className="font-semibold block">检测到无效格式的数据 ({stats.invalid} 条)</span>
-                    无效数据通常是由于：产品 ID (如 P0001) 不在产品库中，日期缺失，团队或箱型格式不正确，或者数量全部为 0。<strong>只有有效数据会被导入。</strong>
+                    <span className="font-semibold block">发现已存在的数据 ({duplicateCount} 条)</span>
+                    检测到该日期有 {duplicateCount} 条记录与数据库中完全一致。系统在导入时将<strong>自动去重跳过</strong>这些记录，避免重复录入。
+                  </div>
+                </div>
+              )}
+
+              {stats.invalid - duplicateCount > 0 && (
+                <div className="flex items-start gap-2 bg-red-50 text-red-900 border border-red-100 rounded-xl p-3.5 text-xs">
+                  <AlertTriangle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <span className="font-semibold block">检测到格式错误的无效数据 ({stats.invalid - duplicateCount} 条)</span>
+                    无效数据通常是由于：产品 ID 不在产品库中，日期缺失，团队或箱型格式不正确，或者数量全部为 0。<strong>只有有效且不重复的数据会被导入。</strong>
                   </div>
                 </div>
               )}
@@ -250,7 +434,7 @@ export default function ImportPage() {
                 <div className="flex gap-2">
                   <Button
                     variant="outline"
-                    onClick={() => { setFile(null); setPreview(null); setStats(null) }}
+                    onClick={() => { setFile(null); setPreview(null); setStats(null); setDuplicateCount(0) }}
                     className="flex-1 h-12"
                     disabled={importing}
                   >
@@ -264,19 +448,118 @@ export default function ImportPage() {
                     {importing ? (
                       <><Loader2 className="w-4 h-4 animate-spin mr-2" />正在导入...</>
                     ) : (
-                      '确认导入有效数据'
+                      `确认导入 ${stats.valid} 条数据`
                     )}
                   </Button>
                 </div>
               ) : (
-                <div className="text-center py-4 text-sm text-red-500">
-                  未检测到任何有效的行数据，请检查文件格式。
+                <div className="text-center py-4 text-sm text-red-500 font-semibold">
+                  未检测到任何可导入的新记录，请检查文件。
                 </div>
               )}
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Dangerous Action Area - Clear Date Data */}
+      <Card className="shadow-sm border-red-100 bg-red-50/20">
+        <CardHeader>
+          <CardTitle className="text-base text-red-800 flex items-center gap-2">
+            <Trash2 className="w-4 h-4" />
+            <span>危险操作区：清除指定日期数据</span>
+          </CardTitle>
+          <CardDescription>
+            此操作将彻底删除指定日期内的所有收菜记录。通常用于导入错误后重新清理。请谨慎操作。
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label className="text-xs text-gray-500">选择要清除数据的日期</Label>
+            <Popover open={deleteCalOpen} onOpenChange={setDeleteCalOpen}>
+              <PopoverTrigger
+                render={
+                  <Button variant="outline" className="w-full h-11 justify-between text-sm bg-white border-red-200">
+                    <div className="flex items-center gap-2">
+                      <CalendarIcon className="w-4 h-4 text-red-600" />
+                      {formatAucklandDateLabel(deleteDate)}
+                    </div>
+                    <span className="text-xs text-gray-400">点击选择</span>
+                  </Button>
+                }
+              />
+              <PopoverContent className="w-auto p-0" align="center">
+                <Calendar
+                  mode="single"
+                  selected={toAucklandCalendarDate(deleteDate)}
+                  onSelect={date => {
+                    if (date) {
+                      setDeleteDate(formatAucklandDate(date))
+                      setDeleteCalOpen(false)
+                    }
+                  }}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+
+          <Button
+            type="button"
+            onClick={handleClearDateQuery}
+            disabled={clearing}
+            className="w-full h-11 bg-red-600 hover:bg-red-700 text-white font-semibold text-xs"
+          >
+            {clearing ? (
+              <><Loader2 className="w-4 h-4 animate-spin mr-2" />正在查询...</>
+            ) : (
+              '清理该日期全部数据'
+            )}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Clear Confirmation Modal */}
+      {confirmClearOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-xl overflow-hidden">
+            <div className="px-6 py-5 bg-red-50 border-b border-red-100 flex items-center gap-3 text-red-900">
+              <AlertTriangle className="w-6 h-6 text-red-600 flex-shrink-0" />
+              <div>
+                <h3 className="text-base font-bold">确认清除数据</h3>
+                <p className="text-xs text-red-700 mt-0.5">该操作是不可逆的，将从数据库彻底抹去！</p>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="text-sm text-gray-600 leading-relaxed">
+                你选择清除 <span className="font-bold text-red-600">{formatAucklandDateLabel(deleteDate)}</span> 的全部收菜记录。
+                <br />
+                经查询，该日期目前在库中共有 <span className="font-extrabold text-red-600 text-base">{clearStatsCount}</span> 条数据。
+                <br />
+                点击下方按钮将永久删除这 {clearStatsCount} 条数据，你确定要继续吗？
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  className="flex-1 h-11"
+                  onClick={() => setConfirmClearOpen(false)}
+                  disabled={clearing}
+                >
+                  取消
+                </Button>
+                <Button
+                  className="flex-1 h-11 bg-red-600 hover:bg-red-700 text-white font-bold"
+                  onClick={handleClearDateExecute}
+                  disabled={clearing}
+                >
+                  {clearing ? '正在清理...' : '确定彻底删除'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

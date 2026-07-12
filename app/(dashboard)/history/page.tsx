@@ -7,7 +7,10 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Loader2, Download, CalendarIcon, ChevronDown, ChevronRight } from 'lucide-react'
+import { Loader2, Download, CalendarIcon, ChevronDown, ChevronRight, Pencil } from 'lucide-react'
+import { useUser } from '@/hooks/useUser'
+import { EditEntryModal } from '@/components/forms/EditEntryModal'
+import { mutate } from 'swr'
 import { cn } from '@/lib/utils'
 import { exportHarvestDetail } from '@/lib/export-excel'
 import { useDateFilter } from '@/stores/dateFilter'
@@ -18,6 +21,8 @@ export default function HistoryPage() {
   const { selectedDate, setSelectedDate } = useDateFilter()
   const [calOpen, setCalOpen] = useState(false)
   const [activeTeam, setActiveTeam] = useState('all')
+  const { profile } = useUser()
+  const [editingEntry, setEditingEntry] = useState<HarvestEntryWithProduct | null>(null)
 
   const { data: allEntries = [], isLoading } = useHarvestEntries({ date: selectedDate })
   const { data: entries = [] } = useHarvestEntries({
@@ -31,6 +36,8 @@ export default function HistoryPage() {
   }, {} as Record<string, number>)
 
   const grandTotal = allEntries.reduce((s, e) => s + e.total_qty, 0)
+  const uniquePalletIds = Array.from(new Set(allEntries.map(e => e.pallet_id).filter(Boolean)))
+  const palletCount = uniquePalletIds.length
   const grouped = groupByProduct(entries)
 
   const displayDate = formatAucklandDateLabel(selectedDate)
@@ -64,11 +71,29 @@ export default function HistoryPage() {
         </PopoverContent>
       </Popover>
 
-      {/* Total Card */}
-      <div className="bg-gradient-to-br from-green-600 to-emerald-700 rounded-2xl p-5 text-white shadow-lg">
-        <p className="text-sm font-medium text-green-100">当日全场总收菜量</p>
-        <p className="text-5xl font-black mt-1 tracking-tight">{grandTotal}</p>
-        <p className="text-xs text-green-200 mt-1">{displayDate}</p>
+      {/* Stats Grid */}
+      <div className="grid grid-cols-3 gap-2">
+        <div className="bg-gradient-to-br from-green-600 to-emerald-700 rounded-2xl p-4 text-white shadow-md flex flex-col justify-between">
+          <div>
+            <p className="text-[10px] font-semibold text-green-100 uppercase tracking-wider">当日总产量</p>
+            <p className="text-2xl font-black mt-1 tracking-tight">{grandTotal}</p>
+          </div>
+          <p className="text-[9px] text-green-200 mt-2 truncate">{displayDate}</p>
+        </div>
+        <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+          <div>
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">当日使用板数</p>
+            <p className="text-2xl font-black mt-1 text-gray-800 tracking-tight">{palletCount}</p>
+          </div>
+          <p className="text-[9px] text-gray-400 mt-2 truncate">物理打板统计</p>
+        </div>
+        <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+          <div>
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">当日使用筐数</p>
+            <p className="text-2xl font-black mt-1 text-gray-800 tracking-tight">{grandTotal}</p>
+          </div>
+          <p className="text-[9px] text-gray-400 mt-2 truncate">总包装筐数</p>
+        </div>
       </div>
 
       {/* Team Tabs */}
@@ -115,14 +140,42 @@ export default function HistoryPage() {
         <div className="text-center py-12 text-gray-400 text-sm">该日期暂无记录</div>
       ) : (
         <div className="space-y-2">
-          {grouped.map(group => <ProductGroup key={group.product_id} group={group} />)}
+          {grouped.map(group => (
+            <ProductGroup
+              key={group.product_id}
+              group={group}
+              profile={profile}
+              activeDate={selectedDate}
+              onEdit={setEditingEntry}
+            />
+          ))}
         </div>
       )}
+
+      <EditEntryModal
+        entry={editingEntry}
+        open={!!editingEntry}
+        onClose={() => setEditingEntry(null)}
+        onSaved={() => {
+          mutate(`harvest:${selectedDate}:all:all`)
+          mutate((key: string) => typeof key === 'string' && key.startsWith('harvest:' + selectedDate), undefined, { revalidate: true })
+        }}
+      />
     </div>
   )
 }
 
-function ProductGroup({ group }: { group: ProductSummary }) {
+function ProductGroup({
+  group,
+  profile,
+  activeDate,
+  onEdit,
+}: {
+  group: ProductSummary
+  profile: any
+  activeDate: string
+  onEdit: (entry: HarvestEntryWithProduct) => void
+}) {
   const [expanded, setExpanded] = useState(false)
   return (
     <div className="bg-white rounded-xl border border-gray-100 overflow-hidden shadow-sm">
@@ -138,18 +191,32 @@ function ProductGroup({ group }: { group: ProductSummary }) {
       </button>
       {expanded && (
         <div className="border-t border-gray-50">
-          {group.entries.map(entry => (
-            <div key={entry.id} className="flex items-center justify-between px-4 py-2.5 border-b border-gray-50 last:border-0">
-              <div className="flex items-center gap-2 flex-wrap text-xs text-gray-500">
-                <span className="font-bold px-1.5 py-0.5 rounded text-white text-[11px]" style={{ backgroundColor: TEAM_COLORS[entry.team] }}>{entry.team}</span>
-                <span>{entry.crate}</span>
-                <span>{entry.greenhouse_no}</span>
-                {entry.bag_qty > 0 && <span>Bag×{entry.bag_qty}</span>}
-                {entry.loose_qty > 0 && <span>Loose×{entry.loose_qty}</span>}
+          {group.entries.map(entry => {
+            const canModify = profile?.role === 'admin' || profile?.role === 'superadmin' || (entry.created_by === profile?.id && entry.entry_date === activeDate)
+            return (
+              <div key={entry.id} className="flex items-center justify-between px-4 py-2.5 border-b border-gray-50 last:border-0">
+                <div className="flex items-center gap-2 flex-wrap text-xs text-gray-500">
+                  <span className="font-bold px-1.5 py-0.5 rounded text-white text-[11px]" style={{ backgroundColor: TEAM_COLORS[entry.team] }}>{entry.team}</span>
+                  <span>{entry.crate}</span>
+                  <span>{entry.greenhouse_no}</span>
+                  {entry.bag_qty > 0 && <span>Bag×{entry.bag_qty}</span>}
+                  {entry.loose_qty > 0 && <span>Loose×{entry.loose_qty}</span>}
+                </div>
+                <div className="flex items-center gap-2">
+                  {canModify && (
+                    <button
+                      onClick={() => onEdit(entry)}
+                      className="p-1 rounded text-blue-400 hover:text-blue-600 hover:bg-blue-50 active:scale-95 transition-all"
+                      aria-label="编辑"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  <span className="text-sm font-bold text-gray-800 ml-2 flex-shrink-0">{entry.total_qty}</span>
+                </div>
               </div>
-              <span className="text-sm font-bold text-gray-800 ml-2 flex-shrink-0">{entry.total_qty}</span>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>

@@ -1,151 +1,158 @@
-# 🌿 HF 农场成品菜管理系统 — 使用帮助
+# 🌿 HF Farm Produce Management System — Technical Documentation
 
-欢迎使用 HF 农场成品菜收成与库存管理系统！本系统用于替代原有的 AppSheet，帮助大家更快速地录入每日收菜数据并查看汇总报表。
-
----
-
-## 📱 如何登录
-
-1. 在手机或电脑浏览器中打开系统网址
-2. 输入你的**邮箱地址**和**密码**
-3. 点击「登录」
-
-> 💡 **初始密码**：`HFfarm2026`
-> 首次登录后，请前往「⚙️ 设置」修改成自己的密码。
+This repository contains the Next.js and Supabase codebase for the HF Farm Produce and Harvest Management System. It replaced the legacy AppSheet + Google Sheets system, optimizing mobile entry speed, reporting accuracy, and secure administrative controls.
 
 ---
 
-## 📋 主要功能说明
+## 🛠 Tech Stack
 
-### ➕ 录入收菜数据
-
-**位置**：点击底部导航栏的「录入」按钮
-
-录入步骤：
-1. **选择产品**：在搜索框中输入产品名称，从下拉列表中选择
-2. **选择团队**：点击你所在的团队（H / J / M / S / W / Y）
-3. **选择箱型**：选择使用的箱型（如 L47、B37 等）
-4. **选择板型**：直接点击板型大按钮进行快速选择（NPO / RED / FCC 等）
-5. **输入大棚编号**：输入或选择收菜的大棚编号（初始为空，防止误选，请务必填写实际棚号）
-6. **填写数量**：
-   - 点击 **「Bag (箱/包)」** 或 **「Loose (散装)」** 按钮来选择包装类型（二选一）
-   - 使用步进器的 `+` / `-` 按钮微调数量，或直接点击中间的数字键盘输入
-7. **备注**（可选）：填写需要备注的内容
-8. 点击**「提交」**按钮
-
-提交成功后，页面下方会显示今日已录入的记录折叠栏，点击即可展开查看。每条记录的右侧会显示精确的录入时间（例如 `13:45`），方便核对。
-
-> ⚠️ **注意**：录入功能只有「编辑人员」和「管理员」账号可以使用，仅查看权限的账号无法录入。
+- **Frontend**: Next.js 16 (App Router) + React 19 + TypeScript
+- **Styling**: Tailwind CSS v4 + shadcn/ui + Base UI
+- **Database**: Supabase (PostgreSQL 15 + PostgREST + Auth + Row Level Security)
+- **State Management**: Zustand (for date filtering sync)
+- **Data Fetching**: SWR (configured with 30s automatic polling for live dashboard updates)
+- **Excel Generation**: `xlsx-js-style` (custom styling for Excel output matching the legacy spreadsheets)
 
 ---
 
-### 📋 今日收菜明细
+## 📂 Project Structure
 
-**位置**：点击底部导航栏的「今日」按钮
-
-- 顶部显示**今日全场总收菜量**
-- 可切换不同团队的 Tab（All / H / J / M / S / W / Y）查看各团队数据
-- 按产品名称分组显示，每个产品旁边显示该产品的汇总总数
-- 右上角可**导出 Excel 文件**
-
----
-
-### 📅 历史收菜明细
-
-**位置**：点击底部导航栏的「历史」按钮
-
-- 点击日期选择器，选择任意一天的日期
-- 查看该日期的收菜明细，功能与「今日」页面一样
-- 可**导出 Excel 文件**
-
----
-
-### 🗺️ 区域分类情况
-
-**位置**：点击底部导航栏的「区域」按钮
-
-- 选择日期后，查看该日期按区域汇总的收菜情况
-- 区域分类：
-  - 🏠 **棚内区域**：GH01-GH14 和 2号棚内AF200 的收菜
-  - 🌿 **户外WF03区域**：户外WF03 的收菜
-  - 🚛 **外采**：外采的菜
-  - ✈️ **进口**：进口的菜
-- 可**导出 Excel 文件**
-
----
-
-### 📊 团队总览图
-
-**位置**：底部「更多」→「图表」
-
-- 选择日期后，查看各团队的收菜占比饼图
-- 显示每个团队的数量和全场总收菜量
+```
+hffarm/
+├── app/
+│   ├── layout.tsx                 # Root layout & timezone setup (Auckland)
+│   ├── page.tsx                   # Root redirection to /today
+│   ├── login/page.tsx             # Supabase OTP / password login
+│   ├── (dashboard)/
+│   │   ├── layout.tsx             # Dashboard wrapper with client/server boundary
+│   │   ├── DashboardShell.tsx     # Shell navigation components
+│   │   ├── today/page.tsx         # Today's harvest summaries & stats grid
+│   │   ├── register/page.tsx      # Board-level (pallet) mobile entry interface
+│   │   ├── history/page.tsx       # Date-filtered lookup & summaries
+│   │   ├── area/page.tsx          # Section-wise aggregation and export buttons
+│   │   ├── chart/page.tsx         # Recharts distribution charts
+│   │   ├── products/page.tsx      # Active products catalogue
+│   │   ├── export/page.tsx        # Daily register sheet spreadsheet generator
+│   │   ├── settings/page.tsx      # User profile and password resets
+│   │   └── admin/
+│   │       ├── import/page.tsx    # Excel parser, duplicate filter, clear data tools
+│   │       └── users/page.tsx     # Superadmin role assignment control panel
+├── components/
+│   ├── forms/
+│   │   ├── EditEntryModal.tsx     # Shared dialog component for updating records
+│   │   ├── NumberStepper.tsx      # Custom touch-optimized step counter
+│   │   └── ProductSearch.tsx      # Combobox fuzzy product list searcher
+│   └── ui/                        # Custom Tailwind/shadcn components
+├── hooks/
+│   ├── useHarvestEntries.ts       # SWR data fetching hook
+│   ├── useProducts.ts             # Cacheable products catalog SWR hook
+│   └── useUser.ts                 # Role-checking user context hook
+├── lib/
+│   ├── auckland-time.ts           # Safely handles New Zealand/Auckland timezone conversions
+│   ├── constants.ts               # Enumerated variables (TEAMS, CRATES, PALLETS)
+│   ├── export-excel.ts            # XLSX worksheets layouts and cell styles exports
+│   └── types.ts                   # Unified TypeScript definitions
+```
 
 ---
 
-### 📥 导出农场成品菜登记表
+## 🗄 Database Architecture & Schema
 
-**位置**：底部「更多」→「导出登记表」
+### Tables
 
-- 选择日期后，点击「导出 Excel」
-- 生成的表格包含：产品名称、产量汇总、棚号、出货量等信息
-- 出货量默认等于当日产量，库存默认为 0
-- **下载后请自行调整库存和出货数量**
+#### 1. `user_profiles`
+Maintains user permissions synced via Supabase Auth triggers.
+- `id` (uuid, PK) -> Matches `auth.users.id`
+- `email` (text, Not Null)
+- `display_name` (text)
+- `role` (text, default 'editor') -> Checked by constraint: `role IN ('superadmin', 'admin', 'editor', 'viewer')`
+- `created_at` (timestamptz, default now())
 
----
+#### 2. `products`
+The master catalogue containing product descriptions.
+- `id` (uuid, PK)
+- `product_id` (text, Unique) -> E.g., `P0001`
+- `factory_product_name` (text, Not Null)
+- `stockcode` (text)
+- `exo_description` (text)
+- `is_active` (boolean, default true)
 
-### 👑 导出全量历史数据 (管理员专有)
+#### 3. `pallets` (Board Entity)
+Represents a physical pallet carrying crates of harvest items.
+- `id` (uuid, PK)
+- `entry_date` (date, default current_date)
+- `pallet_type` (text, Not Null) -> E.g., `NPO`, `RED`, `FCC`
+- `created_by` (uuid, FK -> `auth.users`)
+- `created_by_email` (text)
+- `created_at` (timestamptz, default now())
 
-**位置**：底部「更多」→「导出登记表」
-
-- 仅对 **管理员 (Admin)** 账号显示。
-- 点击「导出全部历史数据 (.xlsx)」按钮，即可一键下载数据库内所有的历史收菜流水记录，包含录入人邮箱和精确的录入时间，方便归档和财务审计。
-
----
-
-## ⚙️ 修改密码
-
-**位置**：底部「更多」→「设置」
-
-1. 输入旧密码
-2. 输入新密码（至少 8 位）
-3. 再次确认新密码
-4. 点击「保存修改」
-
----
-
-## 🔑 账号权限说明
-
-| 权限类型 | 说明 |
-|---------|------|
-| **管理员 (Admin)** | 可录入数据、查看所有报表、管理用户、导入/删除数据 |
-| **编辑员 (Editor)** | 可录入数据、查看所有报表、导出数据 |
-| **查看员 (Viewer)** | 只能查看报表和导出数据，不能录入 |
-
----
-
-## ❓ 常见问题
-
-**Q：我忘记密码了怎么办？**
-A：请联系管理员（Betty 或农场主管）重置密码。
-
-**Q：我不小心填错了数据怎么办？**
-A：在「录入」页面下方的今日记录列表中，左滑或点击删除按钮可以删除当天自己录入的记录，然后重新录入正确数据。
-
-**Q：系统显示无法连接怎么办？**
-A：请检查手机网络连接是否正常，刷新页面重试。
-
-**Q：产品列表里没有我要录入的产品怎么办？**
-A：请联系管理员添加新产品。
+#### 4. `harvest_entries` (Details Row)
+The transactional log matching products, teams, crates, and quantity on a specific date.
+- `id` (uuid, PK)
+- `entry_date` (date, Not Null)
+- `product_id` (uuid, FK -> `products.id`)
+- `bag_qty` (int, default 0)
+- `loose_qty` (int, default 0)
+- `total_qty` (int, generated: `bag_qty + loose_qty`)
+- `crate` (text, Not Null)
+- `pallet` (text, Not Null) -> Matches the string name of the pallet type
+- `pallet_id` (uuid, FK -> `pallets.id`, NULLABLE) -> Links detail rows to their parent board. Nullable for backward compatibility.
+- `greenhouse_no` (text, Not Null)
+- `area_category` (text, generated column) -> Derived from `greenhouse_no` to auto-classify area type ('棚内区域', '户外WF03区域', '外采', '进口', '其他')
+- `team` (text, Not Null) -> Checked: `team IN ('H','J','M','S','W','Y')`
+- `notes` (text)
+- `created_by` (uuid, FK -> `auth.users`)
+- `created_by_email` (text)
+- `created_at` (timestamptz)
 
 ---
 
-## 📞 联系管理员
+## 🔒 Security & Admin Controls
 
-如有问题请联系：
-- **ichsh48@gmail.com**
-- **betty.huforwork@gmail.com**
+### Role Hierarchy
+1. **superadmin**: Superuser (Betty). Can manage all users including promoting/demoting `admin` roles.
+2. **admin**: System managers. Can edit/delete any harvest record, import/wipe excel logs, and modify editor/viewer user roles. Cannot modify other `admin` or `superadmin` profiles.
+3. **editor**: General staff. Can record harvests, view dashboards, and edit/delete their *own* entries for the *current day only*.
+4. **viewer**: Auditors/Viewers. Read-only access to dashboards and excel exports.
+
+### Row Level Security (RLS)
+
+#### `harvest_entries`
+- **SELECT**: All authenticated users.
+- **INSERT**: `admin`, `superadmin`, or `editor` users.
+- **UPDATE**: `admin`, `superadmin`, or the creator of the record on the current date.
+- **DELETE**: `admin`, `superadmin`, or the creator of the record on the current date.
+
+#### `pallets`
+- **SELECT**: All authenticated users.
+- **INSERT/UPDATE/DELETE**: Inherits similar constraints to `harvest_entries` checking `get_my_role()`.
+
+### 🛡️ Admin Protection Database Triggers
+To prevent privilege escalation and protect managers from unauthorized modifications, a PostgreSQL trigger `prevent_admin_demotion` runs on the `user_profiles` table:
+- Only a `superadmin` can modify the role of an `admin` or `superadmin`.
+- Nobody (including themselves) can demote or alter the `superadmin` role.
+- Standard updates cannot promote a user to `superadmin`.
 
 ---
 
-*HF Farm Produce Management System — 版本 1.0*
+## 🚀 Local Development
+
+1. **Install dependencies**:
+   ```bash
+   npm install
+   ```
+2. **Configure environment variables**:
+   Create a `.env.local` file with:
+   ```env
+   NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOi...
+   ```
+3. **Run the dev server**:
+   ```bash
+   npm run dev
+   ```
+
+---
+
+## 📈 Database Migration Code
+For reference, database schema migrations, seed scripts, and policies are located in `supabase_seed_harvest_v2.sql` and the database updates documented in `implementation_plan.md`.
