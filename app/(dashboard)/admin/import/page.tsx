@@ -47,6 +47,11 @@ export default function ImportPage() {
   const productMap = new Map<string, string>()
   products.forEach(p => productMap.set(p.product_id, p.id))
 
+  // State for ID conflicts
+  const [idConflictCount, setIdConflictCount] = useState(0)
+  const [conflictStrategy, setConflictStrategy] = useState<'skip' | 'overwrite' | 'reassign'>('skip')
+  const [palletsPreview, setPalletsPreview] = useState<any[] | null>(null)
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files?.[0]) {
       const selectedFile = e.target.files[0]
@@ -63,12 +68,12 @@ export default function ImportPage() {
         const data = new Uint8Array(e.target?.result as ArrayBuffer)
         const workbook = XLSX.read(data, { type: 'array', cellDates: true })
         
-        // Find sheet
-        const sheetName = workbook.SheetNames.find(n => n.toLowerCase() === 'register') || workbook.SheetNames[0]
-        const worksheet = workbook.Sheets[sheetName]
+        // 1. Find sheet for harvest entries
+        const entrySheetName = workbook.SheetNames.find(n => n.includes('全量历史') || n.toLowerCase() === 'register') || workbook.SheetNames[0]
+        const entryWorksheet = workbook.Sheets[entrySheetName]
         
         // Convert to JSON
-        const rawRows: any[] = XLSX.utils.sheet_to_json(worksheet)
+        const rawRows: any[] = XLSX.utils.sheet_to_json(entryWorksheet)
         
         if (rawRows.length === 0) {
           toast.error('表格为空或格式不正确')
@@ -76,29 +81,43 @@ export default function ImportPage() {
           return
         }
 
-        // 1. Map and structurally validate first
-        const mappedRows = rawRows.map((row, idx) => {
-          const productCode = String(row.Product || '').trim()
-          const uuid = productMap.get(productCode)
-          const entryDate = parseExcelDateToAucklandDate(row.Date)
+        // Parse optional Pallets sheet if present
+        const palletSheetName = workbook.SheetNames.find(n => n.includes('板记录数据') || n.toLowerCase() === 'pallets')
+        let rawPallets: any[] = []
+        if (palletSheetName) {
+          rawPallets = XLSX.utils.sheet_to_json(workbook.Sheets[palletSheetName])
+        }
+        setPalletsPreview(rawPallets)
 
-          const bag = parseInt(row.Bag || row.bag || 0, 10)
-          const loose = parseInt(row.Loose || row.loose || 0, 10)
-          const teamCode = String(row.Team || '').trim().toUpperCase()
-          const crateCode = String(row.Crate || '').trim()
-          const palletCode = String(row.Pallet || '').trim()
-          const ghCode = String(row.GreenhouseNo || row['Greenhouse No.'] || '').trim()
+        // 2. Map and structurally validate harvest entries
+        const mappedRows = rawRows.map((row, idx) => {
+          const productCode = String(row.Product || row['产品 ID'] || row.product_id || '').trim()
+          const uuid = productMap.get(productCode)
+          const entryDate = parseExcelDateToAucklandDate(row.Date || row['日期'] || row.entry_date)
+
+          const bag = parseInt(row.Bag || row.bag || row['Bag (包数)'] || 0, 10)
+          const loose = parseInt(row.Loose || row.loose || row['Loose (散数)'] || 0, 10)
+          const teamCode = String(row.Team || row['团队'] || row.team || '').trim().toUpperCase()
+          const crateCode = String(row.Crate || row['箱型'] || row.crate || '').trim()
+          const palletCode = String(row.Pallet || row['板型'] || row.pallet || '').trim()
+          const ghCode = String(row.GreenhouseNo || row['Greenhouse No.'] || row['大棚编号'] || row.greenhouse_no || '').trim()
+
+          const rawId = String(row.ID || row.id || '').trim() || null
+          const rawPalletId = String(row.PalletID || row.pallet_id || row['板记录ID'] || '').trim() || null
+          const rawCreatedBy = String(row.CreatedByID || row.created_by || '').trim() || null
+          const rawCreatedByEmail = String(row.CreatedByEmail || row.CreatedBy || row['录入人'] || row.created_by_email || '').trim() || null
+          const rawCreatedAt = row.CreatedAt || row.created_at || null
 
           // Date filter: if in filter mode, check if date matches selected date
           const isDateMatched = selectedDateMode !== 'filter' || entryDate === selectedFilterDate
 
-          // Simple structural validation rules (excluding date match for now)
+          // Simple structural validation rules
           const isStructurallyValid = !!uuid && !!entryDate && !!teamCode && !!crateCode && (bag > 0 || loose > 0)
-          
           const isValid = isStructurallyValid && isDateMatched
 
           return {
             rowNum: idx + 2,
+            id: rawId,
             entryDate,
             productCode,
             productId: uuid,
@@ -106,52 +125,69 @@ export default function ImportPage() {
             looseQty: loose,
             crate: crateCode,
             pallet: palletCode || 'NPO',
+            palletId: rawPalletId,
             greenhouseNo: ghCode || 'GH01',
             team: teamCode,
-            notes: row.Notes || row.notes || null,
-            created_by_email: row.CreatedBy || null,
-            createdAt: row.CreatedAt instanceof Date ? row.CreatedAt.toISOString() : null,
+            notes: row.Notes || row.notes || row['备注'] || null,
+            createdBy: rawCreatedBy,
+            createdByEmail: rawCreatedByEmail,
+            createdAt: rawCreatedAt instanceof Date ? rawCreatedAt.toISOString() : (typeof rawCreatedAt === 'string' ? rawCreatedAt : null),
             isStructurallyValid,
             isValid,
             isFilteredOut: isStructurallyValid && !isDateMatched,
           }
         })
 
-        // 2. Fetch existing records for duplicate check
+        // 3. Fetch existing records for duplicate & ID conflict check
         const uniqueDates = Array.from(new Set(mappedRows.filter(r => r.isValid && r.entryDate).map(r => r.entryDate))) as string[]
+        const excelIds = mappedRows.map(r => r.id).filter(Boolean) as string[]
         
-        let existing: any[] = []
+        let existingByContent: any[] = []
+        let existingById: any[] = []
+
         if (uniqueDates.length > 0) {
-          const { data: dbRows, error: dbError } = await supabase
+          const { data: dbRows } = await supabase
             .from('harvest_entries')
-            .select('entry_date, product_id, bag_qty, loose_qty, team, greenhouse_no, crate')
+            .select('id, entry_date, product_id, bag_qty, loose_qty, team, greenhouse_no, crate')
             .in('entry_date', uniqueDates)
-          if (dbError) {
-            console.error('Failed to query existing records:', dbError)
-          } else {
-            existing = dbRows || []
-          }
+          existingByContent = dbRows || []
         }
+
+        if (excelIds.length > 0) {
+          const { data: dbIds } = await supabase
+            .from('harvest_entries')
+            .select('id')
+            .in('id', excelIds)
+          existingById = dbIds || []
+        }
+
+        const existingIdSet = new Set(existingById.map(e => e.id))
 
         let validCount = 0
         let invalidCount = 0
         let dupCount = 0
         let filterCount = 0
+        let conflictCount = 0
 
-        // 3. Separate duplicates and filtered-out rows
+        // 4. Process each mapped row
         const processed = mappedRows.map(r => {
           if (r.isFilteredOut) {
             filterCount++
-            return { ...r, isDuplicate: false }
+            return { ...r, isDuplicate: false, isIdConflict: false }
           }
 
           if (!r.isStructurallyValid) {
             invalidCount++
-            return { ...r, isDuplicate: false }
+            return { ...r, isDuplicate: false, isIdConflict: false }
           }
 
-          // Duplicate condition: exact match on date, product, qty, team, greenhouse, crate
-          const isDuplicate = existing.some(ex => 
+          const hasIdConflict = !!(r.id && existingIdSet.has(r.id))
+          if (hasIdConflict) {
+            conflictCount++
+          }
+
+          // Content Duplicate condition (without matching ID)
+          const isDuplicate = !hasIdConflict && existingByContent.some(ex => 
             ex.entry_date === r.entryDate &&
             ex.product_id === r.productId &&
             ex.bag_qty === r.bagQty &&
@@ -163,16 +199,17 @@ export default function ImportPage() {
 
           if (isDuplicate) {
             dupCount++
-            return { ...r, isDuplicate: true, isValid: false } // Mark as invalid/duplicate so we skip it
+            return { ...r, isDuplicate: true, isIdConflict: false, isValid: false }
           } else {
             validCount++
-            return { ...r, isDuplicate: false }
+            return { ...r, isDuplicate: false, isIdConflict: hasIdConflict }
           }
         })
 
         setPreview(processed)
         setDuplicateCount(dupCount)
         setFilteredOutCount(filterCount)
+        setIdConflictCount(conflictCount)
         setStats({ total: processed.length, valid: validCount, invalid: invalidCount + dupCount + filterCount })
       } catch (err: any) {
         toast.error('解析 Excel 失败: ' + err.message)
@@ -194,49 +231,136 @@ export default function ImportPage() {
     if (!preview || !stats || stats.valid === 0) return
     
     setImporting(true)
-    const validRows = preview.filter(r => r.isValid && !r.isDuplicate && !r.isFilteredOut)
+    let validRows = preview.filter(r => r.isValid && !r.isDuplicate && !r.isFilteredOut)
 
-    // Insert in batches of 50
-    const batchSize = 50
+    // Filter or adjust rows based on ID conflict strategy
+    if (idConflictCount > 0 && conflictStrategy === 'skip') {
+      validRows = validRows.filter(r => !r.isIdConflict)
+    }
+
+    if (validRows.length === 0) {
+      toast.warning('按当前冲突策略，无任何可导入的记录')
+      setImporting(false)
+      return
+    }
+
     let successCount = 0
     let failureCount = 0
 
     try {
       const { data: { user } } = await supabase.auth.getUser()
+      const palletIdMap = new Map<string, string>() // Map old pallet ID to new UUID if reassigning
 
+      // 1. Restore Pallets if present in backup Sheet
+      if (palletsPreview && palletsPreview.length > 0) {
+        for (const p of palletsPreview) {
+          const oldPalletId = p.ID || p.id
+          if (!oldPalletId) continue
+
+          if (conflictStrategy === 'reassign') {
+            const newPalletUuid = crypto.randomUUID()
+            palletIdMap.set(oldPalletId, newPalletUuid)
+            
+            await supabase.from('pallets').insert({
+              id: newPalletUuid,
+              entry_date: parseExcelDateToAucklandDate(p['日期'] || p.entry_date),
+              pallet_type: p['板型'] || p.pallet_type || 'NPO',
+              created_by: user?.id,
+              created_by_email: user?.email,
+              created_at: p.CreatedAt || p.created_at || new Date().toISOString()
+            })
+          } else if (conflictStrategy === 'overwrite') {
+            await supabase.from('pallets').upsert({
+              id: oldPalletId,
+              entry_date: parseExcelDateToAucklandDate(p['日期'] || p.entry_date),
+              pallet_type: p['板型'] || p.pallet_type || 'NPO',
+              created_by: p.CreatedByID || p.created_by || user?.id,
+              created_by_email: p.CreatedByEmail || p.created_by_email || user?.email,
+              created_at: p.CreatedAt || p.created_at || new Date().toISOString()
+            }, { onConflict: 'id' })
+          } else {
+            // skip mode -> insert ignore
+            await supabase.from('pallets').upsert({
+              id: oldPalletId,
+              entry_date: parseExcelDateToAucklandDate(p['日期'] || p.entry_date),
+              pallet_type: p['板型'] || p.pallet_type || 'NPO',
+              created_by: p.CreatedByID || p.created_by || user?.id,
+              created_by_email: p.CreatedByEmail || p.created_by_email || user?.email,
+              created_at: p.CreatedAt || p.created_at || new Date().toISOString()
+            }, { onConflict: 'id', ignoreDuplicates: true })
+          }
+        }
+      }
+
+      // 2. Insert or Upsert harvest entries in batches of 50
+      const batchSize = 50
       for (let i = 0; i < validRows.length; i += batchSize) {
-        const batch = validRows.slice(i, i + batchSize).map(r => ({
-          entry_date: r.entryDate,
-          product_id: r.productId,
-          bag_qty: r.bagQty,
-          loose_qty: r.looseQty,
-          crate: r.crate,
-          pallet: r.pallet,
-          greenhouse_no: r.greenhouseNo,
-          team: r.team,
-          notes: r.notes,
-          created_by: user?.id,
-          created_by_email: r.created_by_email || user?.email,
-          created_at: r.createdAt || new Date().toISOString()
-        }))
+        const chunk = validRows.slice(i, i + batchSize)
 
-        const { error } = await supabase.from('harvest_entries').insert(batch)
+        const batch = chunk.map(r => {
+          let targetId: string | undefined = undefined
+          let targetPalletId: string | null = r.palletId
+
+          if (conflictStrategy === 'reassign') {
+            targetId = undefined // Let database assign new UUID
+            if (r.palletId && palletIdMap.has(r.palletId)) {
+              targetPalletId = palletIdMap.get(r.palletId)!
+            }
+          } else if (conflictStrategy === 'overwrite' && r.id) {
+            targetId = r.id
+          } else if (conflictStrategy === 'skip' && r.id && !r.isIdConflict) {
+            targetId = r.id
+          }
+
+          const record: any = {
+            entry_date: r.entryDate,
+            product_id: r.productId,
+            bag_qty: r.bagQty,
+            loose_qty: r.looseQty,
+            crate: r.crate,
+            pallet: r.pallet,
+            pallet_id: targetPalletId,
+            greenhouse_no: r.greenhouseNo,
+            team: r.team,
+            notes: r.notes,
+            created_by: (conflictStrategy === 'reassign' ? user?.id : (r.createdBy || user?.id)),
+            created_by_email: r.createdByEmail || user?.email,
+            created_at: r.createdAt || new Date().toISOString()
+          }
+
+          if (targetId) {
+            record.id = targetId
+          }
+
+          return record
+        })
+
+        let error = null
+        if (conflictStrategy === 'overwrite') {
+          const { error: upsertErr } = await supabase.from('harvest_entries').upsert(batch, { onConflict: 'id' })
+          error = upsertErr
+        } else {
+          const { error: insertErr } = await supabase.from('harvest_entries').insert(batch)
+          error = insertErr
+        }
+
         if (error) {
           console.error('Batch error:', error)
-          failureCount += batch.length
+          failureCount += chunk.length
         } else {
-          successCount += batch.length
+          successCount += chunk.length
         }
       }
 
       if (failureCount === 0) {
-        toast.success(`成功导入 ${successCount} 条数据！` + (duplicateCount > 0 ? `（已过滤并跳过 ${duplicateCount} 条重复数据）` : ''))
+        toast.success(`成功导入 ${successCount} 条数据！` + (duplicateCount > 0 ? `（自动跳过 ${duplicateCount} 条已知重复内容）` : ''))
         // Reset states
         setFile(null)
         setPreview(null)
         setStats(null)
         setDuplicateCount(0)
         setFilteredOutCount(0)
+        setIdConflictCount(0)
       } else {
         toast.warning(`导入部分成功: ${successCount} 条成功, ${failureCount} 条失败`)
       }
@@ -455,6 +579,60 @@ export default function ImportPage() {
                   <div>
                     <span className="font-semibold block">检测到格式错误的无效数据 ({actualInvalidFormat} 条)</span>
                     无效数据通常是由于：产品 ID 不在产品库中，日期缺失，团队或箱型格式不正确，或者数量全部为 0。<strong>只有有效且不重复的数据会被导入。</strong>
+                  </div>
+                </div>
+              )}
+
+              {/* ID Conflict Handling Strategy Toggle */}
+              {idConflictCount > 0 && (
+                <div className="p-4 bg-purple-50/70 border border-purple-200 rounded-xl space-y-3">
+                  <div className="flex items-start gap-2 text-purple-900 text-xs">
+                    <AlertCircle className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold text-sm block">检测到数据库主键重复 ID ({idConflictCount} 条)</span>
+                      Excel 文件中包含 {idConflictCount} 条与数据库现有 ID 相同的历史记录。请选择如何处理这些冲突：
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setConflictStrategy('skip')}
+                      className={cn(
+                        'p-2.5 text-xs rounded-xl border text-left transition-all',
+                        conflictStrategy === 'skip'
+                          ? 'bg-purple-700 text-white border-purple-700 shadow-sm font-bold'
+                          : 'bg-white text-purple-950 border-purple-200 hover:bg-purple-100/40'
+                      )}
+                    >
+                      <span className="font-bold block text-xs mb-0.5">🟡 跳过冲突行</span>
+                      保持库中旧记录不变
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConflictStrategy('overwrite')}
+                      className={cn(
+                        'p-2.5 text-xs rounded-xl border text-left transition-all',
+                        conflictStrategy === 'overwrite'
+                          ? 'bg-purple-700 text-white border-purple-700 shadow-sm font-bold'
+                          : 'bg-white text-purple-950 border-purple-200 hover:bg-purple-100/40'
+                      )}
+                    >
+                      <span className="font-bold block text-xs mb-0.5">🔴 覆盖旧数据</span>
+                      用 Excel 数据更新覆盖
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConflictStrategy('reassign')}
+                      className={cn(
+                        'p-2.5 text-xs rounded-xl border text-left transition-all',
+                        conflictStrategy === 'reassign'
+                          ? 'bg-purple-700 text-white border-purple-700 shadow-sm font-bold'
+                          : 'bg-white text-purple-950 border-purple-200 hover:bg-purple-100/40'
+                      )}
+                    >
+                      <span className="font-bold block text-xs mb-0.5">🔵 重新分配ID兼存</span>
+                      生成新 UUID 完整并存
+                    </button>
                   </div>
                 </div>
               )}

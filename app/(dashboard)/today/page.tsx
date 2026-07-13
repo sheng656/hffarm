@@ -1,12 +1,14 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { formatAucklandDate, formatAucklandDateLabel } from '@/lib/auckland-time'
 import { useHarvestEntries } from '@/hooks/useHarvestEntries'
+import { useUser } from '@/hooks/useUser'
 import { TEAMS, TEAM_COLORS } from '@/lib/constants'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Loader2, Download, ChevronDown, ChevronRight } from 'lucide-react'
+import { Loader2, Download, ChevronDown, ChevronRight, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { exportHarvestDetail } from '@/lib/export-excel'
 import type { HarvestEntryWithProduct, ProductSummary } from '@/lib/types'
@@ -14,6 +16,7 @@ import type { HarvestEntryWithProduct, ProductSummary } from '@/lib/types'
 const TODAY = formatAucklandDate()
 
 export default function TodayPage() {
+  const { isEditor } = useUser()
   const [activeTeam, setActiveTeam] = useState('all')
   const { data: entries = [], isLoading } = useHarvestEntries({
     date: TODAY,
@@ -82,8 +85,14 @@ export default function TodayPage() {
         ))}
       </div>
 
-      {/* Export Button */}
-      <div className="flex justify-end">
+      {/* Export & Register Action Buttons */}
+      <div className="flex items-center justify-between gap-2">
+        <Link href="/register">
+          <Button variant="default" size="sm" className="text-xs gap-1.5 bg-green-600 hover:bg-green-700 font-bold shadow-xs">
+            <Plus className="w-3.5 h-3.5" />
+            去录入收菜
+          </Button>
+        </Link>
         <Button
           variant="outline"
           size="sm"
@@ -108,6 +117,17 @@ export default function TodayPage() {
             <ProductGroup key={group.product_id + group.product_name} group={group} />
           ))}
         </div>
+      )}
+
+      {/* Floating Action Button for Mobile / Quick Access */}
+      {isEditor && (
+        <Link
+          href="/register"
+          className="fixed bottom-20 right-4 z-40 flex items-center gap-1.5 px-4 py-2.5 rounded-full bg-green-600 text-white shadow-lg hover:bg-green-700 active:scale-95 transition-all text-sm font-bold border border-green-500/30"
+        >
+          <Plus className="w-4 h-4" />
+          去录入
+        </Link>
       )}
     </div>
   )

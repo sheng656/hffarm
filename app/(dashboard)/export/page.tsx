@@ -69,9 +69,15 @@ export default function ExportPage() {
         return
       }
 
-      exportAllHistory(rawEntries)
+      // Fetch pallets table data for complete backup
+      const { data: palletRecords } = await supabase
+        .from('pallets')
+        .select('*')
+        .order('entry_date', { ascending: false })
+
+      exportAllHistory(rawEntries, palletRecords || [])
       toast.success('🎉 导出历史数据成功！', {
-        description: `已成功导出 ${rawEntries.length} 条收菜流水`
+        description: `已成功导出 ${rawEntries.length} 条收菜流水及 ${palletRecords?.length || 0} 板打板记录`
       })
     } catch (err: any) {
       toast.error('导出失败', { description: err?.message || '未知错误' })

@@ -1,6 +1,6 @@
 // @ts-ignore
 import * as XLSX from 'xlsx-js-style'
-import type { HarvestEntryWithProduct } from './types'
+import type { HarvestEntryWithProduct, PalletRecord } from './types'
 import { formatAucklandDateTime, formatAucklandFileTimestamp } from './auckland-time'
 
 /**
@@ -248,11 +248,16 @@ export function exportDailyRegister(
 }
 
 /**
- * 导出全量收菜历史数据为 Excel
+ * 导出全量收菜历史数据为 Excel（包含板记录 Sheets 与全量备份字段）
  */
-export function exportAllHistory(entries: HarvestEntryWithProduct[]) {
+export function exportAllHistory(
+  entries: HarvestEntryWithProduct[],
+  pallets: PalletRecord[] = []
+) {
+  // 1. Sheet 1: Harvest Entries Detail
   const data = entries.map((e, index) => ({
     '序号': index + 1,
+    'ID': e.id,
     '日期': e.entry_date,
     '区域分类': e.area_category,
     '大棚编号': e.greenhouse_no,
@@ -266,18 +271,22 @@ export function exportAllHistory(entries: HarvestEntryWithProduct[]) {
     '总数': e.total_qty || 0,
     '箱型': e.crate,
     '板型': e.pallet,
+    'PalletID': e.pallet_id ?? '',
     '备注': e.notes ?? '',
+    'CreatedByID': e.created_by ?? '',
     '录入人': e.created_by_email ?? '',
-    '录入时间': e.created_at ? formatAucklandDateTime(e.created_at) : ''
+    'CreatedAt': e.created_at ?? '',
+    '录入时间(可读)': e.created_at ? formatAucklandDateTime(e.created_at) : ''
   }))
 
   const worksheet = XLSX.utils.json_to_sheet(data)
   const workbook = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(workbook, worksheet, '全量历史收菜数据')
 
-  // Set column widths
-  const maxW = [
+  // Set column widths for Sheet 1
+  worksheet['!cols'] = [
     { wch: 6 },   // 序号
+    { wch: 36 },  // ID
     { wch: 12 },  // 日期
     { wch: 15 },  // 区域分类
     { wch: 10 },  // 大棚编号
@@ -291,11 +300,38 @@ export function exportAllHistory(entries: HarvestEntryWithProduct[]) {
     { wch: 10 },  // 总数
     { wch: 12 },  // 箱型
     { wch: 12 },  // 板型
+    { wch: 36 },  // PalletID
     { wch: 20 },  // 备注
+    { wch: 36 },  // CreatedByID
     { wch: 25 },  // 录入人
-    { wch: 20 }   // 录入时间
+    { wch: 25 },  // CreatedAt
+    { wch: 20 }   // 录入时间(可读)
   ]
-  worksheet['!cols'] = maxW
+
+  // 2. Sheet 2: Pallets Records
+  if (pallets && pallets.length > 0) {
+    const palletData = pallets.map((p, index) => ({
+      '序号': index + 1,
+      'ID': p.id,
+      '日期': p.entry_date,
+      '板型': p.pallet_type,
+      'CreatedByID': p.created_by ?? '',
+      'CreatedByEmail': p.created_by_email ?? '',
+      'CreatedAt': p.created_at ?? ''
+    }))
+
+    const palletSheet = XLSX.utils.json_to_sheet(palletData)
+    palletSheet['!cols'] = [
+      { wch: 6 },   // 序号
+      { wch: 36 },  // ID
+      { wch: 12 },  // 日期
+      { wch: 12 },  // 板型
+      { wch: 36 },  // CreatedByID
+      { wch: 25 },  // CreatedByEmail
+      { wch: 25 }   // CreatedAt
+    ]
+    XLSX.utils.book_append_sheet(workbook, palletSheet, '板记录数据')
+  }
 
   const filename = `HF_Farm_All_Harvest_History_${formatAucklandFileTimestamp()}.xlsx`
   XLSX.writeFile(workbook, filename)

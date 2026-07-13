@@ -131,9 +131,12 @@ export default function RegisterPage() {
     }
 
     setTempEntries([...tempEntries, newTemp])
-    // Reset product detail fields to allow adding more products, but keep team, crate, greenhouse for quick entry
+    // Reset product detail fields and team, crate, greenhouse for next product selection
     setSelectedProductId('')
     setSelectedProduct(null)
+    setTeam('')
+    setCrate('')
+    setGreenhouse('')
     setQuantity(0)
     setNotes('')
     toast.success('已添加到当前板')
@@ -317,46 +320,50 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="space-y-5 pb-12">
-      {/* Date Picker Card */}
-      <Card className="shadow-sm border-gray-100">
-        <CardContent className="pt-5 space-y-2">
-          <Label className="text-sm font-semibold text-gray-700">录入日期</Label>
-          <Popover open={calOpen} onOpenChange={setCalOpen}>
-            <PopoverTrigger
-              render={
-                <Button variant="outline" className="w-full h-12 justify-between text-base">
-                  <div className="flex items-center gap-2">
-                    <CalendarIcon className="w-4 h-4 text-green-600" />
-                    {formatAucklandDateLabel(selectedDate)}
-                  </div>
-                  <span className="text-xs text-gray-400">可选今日及以前</span>
-                </Button>
-              }
-            />
-            <PopoverContent className="w-auto p-0" align="center">
-              <Calendar
-                mode="single"
-                selected={toAucklandCalendarDate(selectedDate)}
-                onSelect={date => {
-                  if (date) {
-                    setSelectedDate(formatAucklandDate(date))
-                    setCalOpen(false)
-                  }
-                }}
-                disabled={date => formatAucklandDate(date) > TODAY}
-              />
-            </PopoverContent>
-          </Popover>
-        </CardContent>
-      </Card>
-
+    <div className="space-y-3 pb-12">
       {/* Main Board Card */}
       <Card className="shadow-sm border-gray-100">
-        <CardContent className="pt-5 space-y-5">
+        <CardContent className="pt-4 space-y-4">
+          {/* Inline Date Picker */}
+          <div className="flex items-center justify-between gap-3 pb-3 border-b border-gray-100">
+            <Label className="text-xs font-bold text-gray-700 shrink-0">录入日期</Label>
+            <Popover open={calOpen} onOpenChange={setCalOpen}>
+              <PopoverTrigger
+                render={
+                  <Button variant="outline" className="h-9 justify-between text-xs flex-1 max-w-[220px]">
+                    <div className="flex items-center gap-1.5">
+                      <CalendarIcon className="w-3.5 h-3.5 text-green-600" />
+                      <span>{formatAucklandDateLabel(selectedDate)}</span>
+                    </div>
+                  </Button>
+                }
+              />
+              <PopoverContent className="w-auto p-0" align="center">
+                <Calendar
+                  mode="single"
+                  selected={toAucklandCalendarDate(selectedDate)}
+                  onSelect={date => {
+                    if (date) {
+                      setSelectedDate(formatAucklandDate(date))
+                      setCalOpen(false)
+                    }
+                  }}
+                  disabled={date => formatAucklandDate(date) > TODAY}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+
           {/* Pallet Selection (Board Type) */}
-          <div className="space-y-2">
-            <Label className="text-sm font-semibold text-gray-700 block">选择板型 (Pallet) *</Label>
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold text-gray-700 block">选择板型 (Pallet) *</Label>
+              {!palletType && (
+                <span className="text-[11px] text-amber-600 flex items-center gap-1 font-medium">
+                  <AlertCircle className="w-3 h-3" /> 请先选择板型
+                </span>
+              )}
+            </div>
             <div className="grid grid-cols-3 gap-2">
               {PALLETS.map(p => (
                 <button
@@ -364,9 +371,9 @@ export default function RegisterPage() {
                   type="button"
                   onClick={() => setPalletType(p)}
                   className={cn(
-                    'h-12 rounded-xl text-sm font-bold transition-all duration-150 border-2',
+                    'h-10 rounded-xl text-xs font-bold transition-all duration-150 border-2',
                     palletType === p
-                      ? 'bg-green-600 text-white border-green-600 shadow-md scale-[1.02]'
+                      ? 'bg-green-600 text-white border-green-600 shadow-xs scale-[1.02]'
                       : 'bg-white text-gray-700 border-gray-200 hover:border-green-300 hover:bg-green-50 active:scale-95',
                   )}
                 >
@@ -374,11 +381,6 @@ export default function RegisterPage() {
                 </button>
               ))}
             </div>
-            {!palletType && (
-              <p className="text-[11px] text-amber-600 flex items-center gap-1 font-medium mt-1">
-                <AlertCircle className="w-3.5 h-3.5" /> 物理打板必填，请先点选上方任一板型以开始添加产品。
-              </p>
-            )}
           </div>
 
           {/* Current Board Temporary Items List */}
