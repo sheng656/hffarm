@@ -9,6 +9,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/today':          '今日收菜明细',
   '/register':       '录入收菜数据',
   '/history':        '历史收菜明细',
+  '/stats':          '板数筐数统计',
   '/area':           '区域分类情况',
   '/chart':          '团队总览图',
   '/products':       '产品库',

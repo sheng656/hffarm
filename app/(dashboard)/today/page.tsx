@@ -4,11 +4,12 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { formatAucklandDate, formatAucklandDateLabel } from '@/lib/auckland-time'
 import { useHarvestEntries } from '@/hooks/useHarvestEntries'
+import { useStatsData } from '@/hooks/useStatsData'
 import { useUser } from '@/hooks/useUser'
 import { TEAMS, TEAM_COLORS } from '@/lib/constants'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Loader2, Download, ChevronDown, ChevronRight, Plus } from 'lucide-react'
+import { Loader2, Download, ChevronDown, ChevronRight, Plus, ChevronRight as ArrowRightIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { exportHarvestDetail } from '@/lib/export-excel'
 import type { HarvestEntryWithProduct, ProductSummary } from '@/lib/types'
@@ -23,6 +24,7 @@ export default function TodayPage() {
     team: activeTeam === 'all' ? undefined : activeTeam,
   })
   const { data: allEntries = [] } = useHarvestEntries({ date: TODAY })
+  const { totalPallets, hasOldData } = useStatsData({ date: TODAY })
 
   // Total per team (from allEntries)
   const teamTotals = TEAMS.reduce((acc, t) => {
@@ -31,8 +33,6 @@ export default function TodayPage() {
   }, {} as Record<string, number>)
 
   const grandTotal = allEntries.reduce((s, e) => s + e.total_qty, 0)
-  const uniquePalletIds = Array.from(new Set(allEntries.map(e => e.pallet_id).filter(Boolean)))
-  const palletCount = uniquePalletIds.length
 
   // Group by product
   const grouped = groupByProduct(entries)
@@ -48,20 +48,38 @@ export default function TodayPage() {
           </div>
           <p className="text-[9px] text-green-200 mt-2 truncate">{formatAucklandDateLabel()}</p>
         </div>
-        <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+
+        <Link
+          href={`/stats?date=${TODAY}`}
+          className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-green-200 transition-all flex flex-col justify-between group active:scale-[0.98]"
+        >
           <div>
-            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">今日使用板数</p>
-            <p className="text-2xl font-black mt-1 text-gray-800 tracking-tight">{palletCount}</p>
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider group-hover:text-green-600 transition-colors">今日使用板数</p>
+              <ArrowRightIcon className="w-3 h-3 text-gray-300 group-hover:text-green-600 transition-colors" />
+            </div>
+            <p className="text-2xl font-black mt-1 text-gray-800 tracking-tight">{totalPallets}</p>
           </div>
-          <p className="text-[9px] text-gray-400 mt-2 truncate">物理打板统计</p>
-        </div>
-        <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+          <p className="text-[9px] text-gray-400 mt-2 truncate group-hover:text-green-600 transition-colors">
+            {hasOldData ? '*含旧录入数据' : '查看板型统计 >'}
+          </p>
+        </Link>
+
+        <Link
+          href={`/stats?date=${TODAY}`}
+          className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-emerald-200 transition-all flex flex-col justify-between group active:scale-[0.98]"
+        >
           <div>
-            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">今日使用筐数</p>
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider group-hover:text-emerald-600 transition-colors">今日使用筐数</p>
+              <ArrowRightIcon className="w-3 h-3 text-gray-300 group-hover:text-emerald-600 transition-colors" />
+            </div>
             <p className="text-2xl font-black mt-1 text-gray-800 tracking-tight">{grandTotal}</p>
           </div>
-          <p className="text-[9px] text-gray-400 mt-2 truncate">总包装筐数</p>
-        </div>
+          <p className="text-[9px] text-gray-400 mt-2 truncate group-hover:text-emerald-600 transition-colors">
+            查看箱型分布 &gt;
+          </p>
+        </Link>
       </div>
 
       {/* Team Tabs */}

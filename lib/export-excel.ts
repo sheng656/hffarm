@@ -620,3 +620,159 @@ export function exportAreaWeeklySummaryExcel(
   XLSX.writeFile(workbook, filename)
 }
 
+/**
+ * 导出单日板数与箱型统计为 Excel
+ */
+export function exportStatsDaily(
+  date: string,
+  palletStats: { pallet_type: string; new_count: number; old_count: number; total: number }[],
+  crateStats: { crate: string; total_qty: number }[],
+  hasOldData: boolean
+) {
+  const workbook = XLSX.utils.book_new()
+
+  // Sheet 1: 板型统计
+  const palletRows: any[] = palletStats.map(p => ({
+    '板型 (Pallet)': p.pallet_type,
+    '物理按板录入数': p.new_count,
+    '旧版单条录入数': p.old_count,
+    '使用板数合计': p.total,
+    '备注': p.old_count > 0 ? '*含旧录入数据(按1条1板)' : '一板多条/整板'
+  }))
+  if (hasOldData) {
+    palletRows.push({
+      '板型 (Pallet)': '注：当前包含旧版单条录入数据，旧数据每条记录按 1 板计算',
+      '物理按板录入数': '',
+      '旧版单条录入数': '',
+      '使用板数合计': '',
+      '备注': ''
+    })
+  }
+
+  const palletWs = XLSX.utils.json_to_sheet(palletRows)
+  palletWs['!cols'] = [{ wch: 15 }, { wch: 18 }, { wch: 18 }, { wch: 15 }, { wch: 40 }]
+  XLSX.utils.book_append_sheet(workbook, palletWs, '板型统计')
+
+  // Sheet 2: 箱型统计
+  const crateRows = crateStats.map(c => ({
+    '箱型 (Crate)': c.crate,
+    '使用总筐数 (Total Qty)': c.total_qty
+  }))
+  const crateWs = XLSX.utils.json_to_sheet(crateRows)
+  crateWs['!cols'] = [{ wch: 20 }, { wch: 22 }]
+  XLSX.utils.book_append_sheet(workbook, crateWs, '箱型统计')
+
+  const filename = `${date}_板数筐数统计.xlsx`
+  XLSX.writeFile(workbook, filename)
+}
+
+/**
+ * 导出一周（近7天）板数与箱型统计为 Excel
+ */
+export async function exportStatsWeekly(endDate: string) {
+  const { createClient } = await import('./supabase/client')
+  const { PALLETS, CRATES } = await import('./constants')
+  const supabase = createClient()
+  
+  // Calculate 6 days before endDate
+  const end = new Date(endDate + 'T00:00:00')
+  const dates: string[] = []
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(end)
+    d.setDate(d.getDate() - i)
+    dates.push(d.toISOString().split('T')[0])
+  }
+  const startDate = dates[0]
+
+  const { data: entries } = await supabase
+    .from('harvest_entries')
+    .select('id, entry_date, pallet, pallet_id, crate, total_qty')
+    .gte('entry_date', startDate)
+    .lte('entry_date', endDate)
+
+  const rows = entries ?? []
+
+  // Collect distinct pallet types & crates
+  const palletTypesSet = new Set<string>([...PALLETS])
+  const cratesSet = new Set<string>([...CRATES])
+
+  rows.forEach(r => {
+    if (r.pallet) palletTypesSet.add(r.pallet)
+    if (r.crate) cratesSet.add(r.crate)
+  })
+
+  // Date x Pallet matrix calculation
+  const palletMatrix: Record<string, Record<string, number>> = {}
+  Array.from(palletTypesSet).forEach(p => {
+    palletMatrix[p] = {}
+    dates.forEach(d => { palletMatrix[p][d] = 0 })
+  })
+
+  dates.forEach(d => {
+    const dayRows = rows.filter(r => r.entry_date === d)
+    const newPallets = new Map<string, string>()
+    dayRows.forEach(r => {
+      if (r.pallet_id) {
+        newPallets.set(r.pallet_id, r.pallet || '未知')
+      } else {
+        const type = r.pallet || '未分类'
+        palletMatrix[type][d] = (palletMatrix[type][d] || 0) + 1
+      }
+    })
+    newPallets.forEach(type => {
+      palletMatrix[type][d] = (palletMatrix[type][d] || 0) + 1
+    })
+  })
+
+  const palletRows = Array.from(palletTypesSet).map(type => {
+    const rowObj: any = { '板型': type }
+    let total = 0
+    dates.forEach(d => {
+      const val = palletMatrix[type][d] || 0
+      rowObj[d] = val
+      total += val
+    })
+    rowObj['合计使用板数'] = total
+    return rowObj
+  }).filter(r => r['合计使用板数'] > 0)
+
+  // Date x Crate matrix calculation
+  const crateMatrix: Record<string, Record<string, number>> = {}
+  Array.from(cratesSet).forEach(c => {
+    crateMatrix[c] = {}
+    dates.forEach(d => { crateMatrix[c][d] = 0 })
+  })
+
+  rows.forEach(r => {
+    const c = r.crate || '未知'
+    const d = r.entry_date
+    if (crateMatrix[c] && crateMatrix[c][d] !== undefined) {
+      crateMatrix[c][d] += (r.total_qty || 0)
+    }
+  })
+
+  const crateRows = Array.from(cratesSet).map(c => {
+    const rowObj: any = { '箱型': c }
+    let total = 0
+    dates.forEach(d => {
+      const val = crateMatrix[c][d] || 0
+      rowObj[d] = val
+      total += val
+    })
+    rowObj['合计总筐数'] = total
+    return rowObj
+  }).filter(r => r['合计总筐数'] > 0)
+
+  const workbook = XLSX.utils.book_new()
+
+  const palletWs = XLSX.utils.json_to_sheet(palletRows)
+  const crateWs = XLSX.utils.json_to_sheet(crateRows)
+
+  XLSX.utils.book_append_sheet(workbook, palletWs, '板型周统计')
+  XLSX.utils.book_append_sheet(workbook, crateWs, '箱型周统计')
+
+  const filename = `${startDate}_至_${endDate}_板数筐数周统计.xlsx`
+  XLSX.writeFile(workbook, filename)
+}
+
+
