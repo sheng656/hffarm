@@ -12,6 +12,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
 import { toast } from 'sonner'
@@ -150,6 +151,7 @@ export function EditEntryModal({ entry, open, onClose, onSaved }: EditEntryModal
       <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-lg font-bold">编辑收菜记录</DialogTitle>
+          <DialogDescription className="text-xs text-gray-500">修改已录入的成品菜收运明细数据。</DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSave} className="space-y-4 pt-2">
