@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>HF 农场成品菜数字化管理系统 — 管理层部署建议书</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 18mm 15mm 18mm 15mm;
+    }
+    
+    * {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: #1f2937;
+      background-color: #ffffff;
+      line-height: 1.6;
+      font-size: 13px;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* Header Banner */
+    .header-banner {
+      background: linear-gradient(135deg, #047857 0%, #065f46 50%, #064e3b 100%);
+      color: #ffffff;
+      padding: 28px 24px;
+      border-rounded: 16px;
+      border-radius: 14px;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 12px rgba(4, 120, 87, 0.15);
+    }
+    
+    .header-banner h1 {
+      margin: 0 0 8px 0;
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+    }
+
+    .header-banner p {
+      margin: 0;
+      font-size: 13px;
+      color: #a7f3d0;
+      line-height: 1.5;
+    }
+
+    .meta-tag {
+      display: inline-block;
+      background: rgba(255, 255, 255, 0.15);
+      color: #ecfdf5;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      margin-top: 12px;
+    }
+
+    /* Section Headings */
+    h2 {
+      color: #065f46;
+      font-size: 17px;
+      font-weight: 700;
+      border-bottom: 2px solid #a7f3d0;
+      padding-bottom: 6px;
+      margin-top: 24px;
+      margin-bottom: 14px;
+      page-break-after: avoid;
+    }
+
+    h3 {
+      color: #111827;
+      font-size: 14px;
+      font-weight: 700;
+      margin-top: 16px;
+      margin-bottom: 8px;
+      page-break-after: avoid;
+    }
+
+    p, li {
+      color: #374151;
+      font-size: 12.5px;
+    }
+
+    /* Comparison Table */
+    .comp-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #e5e7eb;
+    }
+
+    .comp-table th {
+      background-color: #065f46;
+      color: #ffffff;
+      padding: 10px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      text-align: left;
+    }
+
+    .comp-table td {
+      padding: 9px 12px;
+      border-bottom: 1px solid #f3f4f6;
+      font-size: 12px;
+    }
+
+    .comp-table tr:nth-child(even) {
+      background-color: #f9fafb;
+    }
+
+    .comp-table .bad {
+      color: #dc2626;
+      font-weight: 500;
+    }
+
+    .comp-table .good {
+      color: #047857;
+      font-weight: 700;
+    }
+
+    /* Feature Grid / Cards */
+    .feature-block {
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 20px;
+      page-break-inside: avoid;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+    }
+
+    .feature-grid {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+    }
+
+    .feature-desc {
+      flex: 1;
+    }
+
+    .feature-img-wrap {
+      width: 210px;
+      shrink: 0;
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.06);
+      background: #f9fafb;
+    }
+
+    .feature-img-wrap img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      background: #ecfdf5;
+      color: #047857;
+      border: 1px solid #a7f3d0;
+      margin-bottom: 6px;
+    }
+
+    /* Highlights list */
+    ul {
+      margin: 6px 0;
+      padding-left: 18px;
+    }
+
+    li {
+      margin-bottom: 4px;
+    }
+
+    /* Security Role Table */
+    .role-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11.5px;
+      margin-top: 10px;
+    }
+
+    .role-table th, .role-table td {
+      border: 1px solid #e5e7eb;
+      padding: 7px 10px;
+      text-align: center;
+    }
+
+    .role-table th {
+      background: #f3f4f6;
+      color: #1f2937;
+    }
+
+    /* Summary Box */
+    .summary-box {
+      background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+      border: 1px solid #6ee7b7;
+      border-radius: 12px;
+      padding: 16px;
+      margin-top: 24px;
+      page-break-inside: avoid;
+    }
+
+    .summary-box h3 {
+      margin-top: 0;
+      color: #065f46;
+    }
+
+    .page-break {
+      page-break-before: always;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Banner Header -->
+  <div class="header-banner">
+    <h1>🌿 HF 农场成品菜数字化管理系统</h1>
+    <p><strong>管理层项目评估与系统部署建议书</strong></p>
+    <p>专为新西兰 HF 农场量身打造的一站式收成登记、打板追踪、区域统计与 Excel 报表系统</p>
+    <div class="meta-tag">项目执行方案 | 系统版本: v2.0 | 适配多端 (iOS / Android / Desktop)</div>
+  </div>
+
+  <!-- Section 1: Business Case & Pain Points -->
+  <h2>一、 为什么需要引入数字化管理系统？</h2>
+  <p>
+    HF 农场过去依赖传统的纸质手工登记和事后录入 Excel 文件的操作模式。随着采收团队、产品种类（280+ 种）和大棚区域的增加，手工模式暴露出效率低、易遗漏、对账慢以及无权限保护等突出矛盾。
+  </p>
+
+  <table class="comp-table">
+    <thead>
+      <tr>
+        <th style="width: 22%;">评估维度</th>
+        <th style="width: 39%;">传统手工/Excel 模式</th>
+        <th style="width: 39%;">HF 数字农场管理系统</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>现场录入效率</strong></td>
+        <td class="bad">📋 现场纸质抄写，事后二次录入，耗时费力</td>
+        <td class="good">📱 现场手机秒级录入，数据即时同步</td>
+      </tr>
+      <tr>
+        <td><strong>打板与产品关联</strong></td>
+        <td class="bad">❌ 打板与登记脱节，无法精确统计各板型使用量</td>
+        <td class="good">🧩 独创「按板录入」，自动关联物理板与明细</td>
+      </tr>
+      <tr>
+        <td><strong>统计与对账速度</strong></td>
+        <td class="bad">⏱️ 每日需要数小时手工求和计算各团队/区域产量</td>
+        <td class="good">📊 毫秒级自动生成团队、箱型、板型及区域汇总</td>
+      </tr>
+      <tr>
+        <td><strong>报表兼容性</strong></td>
+        <td class="bad">📝 手工填报格式容易乱，公式易被误删修改</td>
+        <td class="good">📤 一键生成完全兼容原有样式的 Excel 报表</td>
+      </tr>
+      <tr>
+        <td><strong>数据安全与审计</strong></td>
+        <td class="bad">🔐 所有人共用 Excel，无操作日志，易被覆盖删除</td>
+        <td class="good">🔑 四级权限体系 + 行级安全，全过程操作留痕</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Section 2: Core Product Overview with Visual Mobile Screenshots -->
+  <h2>二、 系统核心功能与界面演示</h2>
+
+  <!-- Feature 1: Mobile Pallet Entry -->
+  <div class="feature-block">
+    <div class="feature-grid">
+      <div class="feature-desc">
+        <span class="badge">核心创新</span>
+        <h3>1. 📱 移动端快捷按板录入 (Register)</h3>
+        <p>贴合产线打板实际流程：<strong>先选板型 → 往板上添加产品 → 一键提交整板</strong>。</p>
+        <ul>
+          <li><strong>板型指定</strong>：点选 NPO / RED / FCC 板型，杜绝漏选错选。</li>
+          <li><strong>智能产品搜索</strong>：支持 280+ 产品名称与 Stockcode 模糊检索。</li>
+          <li><strong>步进控制</strong>：快捷包数/散数加减，完美防误触。</li>
+          <li><strong>安全提交</strong>：整板数据原子化写入，自动关联创建人与时间。</li>
+        </ul>
+      </div>
+      <div class="feature-img-wrap">
+        <img src="docs/screenshots/register_page.png" alt="按板录入界面" />
+      </div>
+    </div>
+  </div>
+
+  <!-- Feature 2: Real-time Today Dashboard -->
+  <div class="feature-block">
+    <div class="feature-grid">
+      <div class="feature-desc">
+        <span class="badge">实时看板</span>
+        <h3>2. 📊 今日收成看板 (Today Dashboard)</h3>
+        <p>管理者与领班可随时在手机上掌握全场收成动态。</p>
+        <ul>
+          <li><strong>三大核心指标</strong>：实时计算当日总产量、物理使用板数、包装总筐数。</li>
+          <li><strong>团队多维度 Tab</strong>：一键按 H, J, M, S, W, Y 采收团队切换查看。</li>
+          <li><strong>双视角无缝切换</strong>：支持「🎴卡片折叠视图」与「📊Excel全量明细大表」秒级切换。</li>
+          <li><strong>实时自动轮询</strong>：30 秒自动拉取最新数据，多人并行录入不卡顿。</li>
+        </ul>
+      </div>
+      <div class="feature-img-wrap">
+        <img src="docs/screenshots/today_page.png" alt="今日收成看板" />
+      </div>
+    </div>
+  </div>
+
+  <div class="page-break"></div>
+
+  <!-- Feature 3: Interactive Excel Detail Table Grid -->
+  <div class="feature-block">
+    <div class="feature-grid">
+      <div class="feature-desc">
+        <span class="badge">高效对账</span>
+        <h3>3. 📑 交互式 Excel 全量明细大表 (Detail Grid)</h3>
+        <p>还原电子表格的极致体验，满足管理层全盘把控与细节审阅的需求。</p>
+        <ul>
+          <li><strong>默认平铺全量表 (Flat Grid)</strong>：所有明细平铺展现，清晰平整。</li>
+          <li><strong>表头点击动态排序</strong>：点击团队、产品、大棚、箱型、数量或时间即刻升降序重新排列。</li>
+          <li><strong>层级归组切换</strong>：可自由切换为「团队→产品」或「产品→团队」层级分组。</li>
+          <li><strong>底栏 Grand Total</strong>：自动计算总条数、总包数、总散数与总筐数。</li>
+        </ul>
+      </div>
+      <div class="feature-img-wrap">
+        <img src="docs/screenshots/detail_page.png" alt="Excel 明细大表" />
+      </div>
+    </div>
+  </div>
+
+  <!-- Feature 4: Pallet & Crate Usage Statistics -->
+  <div class="feature-block">
+    <div class="feature-grid">
+      <div class="feature-desc">
+        <span class="badge">精细化核算</span>
+        <h3>4. 🪵 板数与箱型分布统计 (Stats)</h3>
+        <p>提供物料消耗与打包规格的精准分析，助力农场物料采购与物流调度。</p>
+        <ul>
+          <li><strong>板型统计 (Pallet)</strong>：展示 NPO, RED, FCC 等板型使用数量，新旧数据自动兼容标记。</li>
+          <li><strong>箱型分布 (Crate)</strong>：按 L47, B37, L60, carton 等箱型统计筐数并配有可视进度条。</li>
+          <li><strong>近 7 天周汇总导出</strong>：可一键生成 7 天物料消耗矩阵 Excel 报表。</li>
+        </ul>
+      </div>
+      <div class="feature-img-wrap">
+        <img src="docs/screenshots/stats_pallet_page.png" alt="板数统计界面" />
+      </div>
+    </div>
+  </div>
+
+  <!-- Feature 5: Area Categories & One-Click Excel Export -->
+  <div class="feature-block">
+    <div class="feature-grid">
+      <div class="feature-desc">
+        <span class="badge">报表无缝衔接</span>
+        <h3>5. 🏠 区域分类汇总与 Excel 一键导出 (Area & Export)</h3>
+        <p>完全兼容原有工作流，一键导出用于财务和销售的标准 Excel 表格。</p>
+        <ul>
+          <li><strong>区域分类</strong>：自动识别棚内区域（GH01-GH14）、户外 WF03、外采、进口。</li>
+          <li><strong>导出成品菜登记表</strong>：格式与原有 Excel 汇总模板 100% 一致。</li>
+          <li><strong>周报与全量备份</strong>：支持周一至周日极简周报导出及管理员全量数据备份。</li>
+        </ul>
+      </div>
+      <div class="feature-img-wrap">
+        <img src="docs/screenshots/export_page.png" alt="报表导出界面" />
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 3: Security & Access Control -->
+  <h2>三、 权限管理与数据安全管控</h2>
+  <p>
+    系统基于 PostgreSQL 数据库级行级安全策略（Row Level Security），建立了完备的四级权限架构：
+  </p>
+
+  <table class="role-table">
+    <thead>
+      <tr>
+        <th>角色名称</th>
+        <th>收成录入</th>
+        <th>看板与报表导出</th>
+        <th>修改他人记录</th>
+        <th>管理员权限变动</th>
+        <th>数据导入/清除</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>👑 <strong>超级管理员</strong></td>
+        <td>✅ 允许</td>
+        <td>✅ 允许</td>
+        <td>✅ 允许任意记录</td>
+        <td>✅ 允许调整所有账号</td>
+        <td>✅ 允许</td>
+      </tr>
+      <tr>
+        <td>🛡️ <strong>管理员</strong></td>
+        <td>✅ 允许</td>
+        <td>✅ 允许</td>
+        <td>✅ 允许任意记录</td>
+        <td>✅ 仅能修改普通用户</td>
+        <td>✅ 允许</td>
+      </tr>
+      <tr>
+        <td>✏️ <strong>编辑员 (员工)</strong></td>
+        <td>✅ 允许</td>
+        <td>✅ 允许</td>
+        <td>❌ 仅自己当天记录</td>
+        <td>❌ 禁止</td>
+        <td>❌ 禁止</td>
+      </tr>
+      <tr>
+        <td>👁️ <strong>查看员 (审计)</strong></td>
+        <td>❌ 只读</td>
+        <td>✅ 允许</td>
+        <td>❌ 禁止</td>
+        <td>❌ 禁止</td>
+        <td>❌ 禁止</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Section 4: Implementation & ROI Summary -->
+  <div class="summary-box">
+    <h3>🚀 四、 部署收益与落地建议</h3>
+    <ul>
+      <li><strong>提升考勤与录入效率 80%</strong>：现场手机打板即登记，无需任何二次手工抄录。</li>
+      <li><strong>实现零差错数据对账</strong>：自动求和与规范化下拉菜单，杜绝字迹不清和公式破坏。</li>
+      <li><strong>全程留痕透明化</strong>：每笔数据均可追溯至具体的录入员工和时间点。</li>
+      <li><strong>零学习成本无缝过渡</strong>：报表格式与原有 Excel 完全一致，无需改变现有的财务与销售对账习惯。</li>
+    </ul>
+  </div>
+
+</body>
+</html>
