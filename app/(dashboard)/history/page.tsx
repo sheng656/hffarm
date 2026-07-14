@@ -9,9 +9,10 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Loader2, Download, CalendarIcon, ChevronDown, ChevronRight, Pencil, ChevronRight as ArrowRightIcon } from 'lucide-react'
+import { Loader2, Download, CalendarIcon, ChevronDown, ChevronRight, Pencil, ChevronRight as ArrowRightIcon, LayoutGrid, FileSpreadsheet } from 'lucide-react'
 import { useUser } from '@/hooks/useUser'
 import { EditEntryModal } from '@/components/forms/EditEntryModal'
+import { ExcelDetailTable } from '@/components/forms/ExcelDetailTable'
 import { mutate } from 'swr'
 import { cn } from '@/lib/utils'
 import { exportHarvestDetail } from '@/lib/export-excel'
@@ -23,6 +24,7 @@ export default function HistoryPage() {
   const { selectedDate, setSelectedDate } = useDateFilter()
   const [calOpen, setCalOpen] = useState(false)
   const [activeTeam, setActiveTeam] = useState('all')
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards')
   const { profile } = useUser()
   const [editingEntry, setEditingEntry] = useState<HarvestEntryWithProduct | null>(null)
 
@@ -115,60 +117,93 @@ export default function HistoryPage() {
         </Link>
       </div>
 
-      {/* Team Tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none -mx-1 px-1">
-        <button
-          onClick={() => setActiveTeam('all')}
-          className={cn(
-            'flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 border-2',
-            activeTeam === 'all'
-              ? 'bg-white shadow-md border-gray-400 text-gray-600 scale-[1.02]'
-              : 'bg-white/50 border-transparent text-gray-500 hover:bg-white',
-          )}
-        >
-          全部 <span className="text-xs px-1.5 py-0.5 rounded-md font-bold bg-gray-100 text-gray-600">{grandTotal}</span>
-        </button>
-        {TEAMS.filter(t => (teamTotals[t] ?? 0) > 0).map(t => (
+      {/* Team Tabs (Cards Mode only) */}
+      {viewMode === 'cards' && (
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none -mx-1 px-1">
           <button
-            key={t}
-            onClick={() => setActiveTeam(t)}
+            onClick={() => setActiveTeam('all')}
             className={cn(
               'flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 border-2',
-              activeTeam === t
-                ? 'bg-white shadow-md border-current scale-[1.02]'
-                : 'bg-white/50 border-transparent hover:bg-white',
+              activeTeam === 'all'
+                ? 'bg-white shadow-md border-gray-400 text-gray-600 scale-[1.02]'
+                : 'bg-white/50 border-transparent text-gray-500 hover:bg-white',
             )}
-            style={{ color: activeTeam === t ? TEAM_COLORS[t] : '#6b7280' }}
           >
-            {t} <span className="text-xs px-1.5 py-0.5 rounded-md font-bold bg-current/10">{teamTotals[t]}</span>
+            全部 <span className="text-xs px-1.5 py-0.5 rounded-md font-bold bg-gray-100 text-gray-600">{grandTotal}</span>
           </button>
-        ))}
-      </div>
-
-      {/* Export */}
-      <div className="flex justify-end">
-        <Button variant="outline" size="sm" onClick={() => exportHarvestDetail(entries, selectedDate, activeTeam)} className="text-xs gap-1.5">
-          <Download className="w-3.5 h-3.5" />导出 Excel
-        </Button>
-      </div>
-
-      {/* Product List */}
-      {isLoading ? (
-        <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-300" /></div>
-      ) : grouped.length === 0 ? (
-        <div className="text-center py-12 text-gray-400 text-sm">该日期暂无记录</div>
-      ) : (
-        <div className="space-y-2">
-          {grouped.map(group => (
-            <ProductGroup
-              key={group.product_id}
-              group={group}
-              profile={profile}
-              activeDate={selectedDate}
-              onEdit={setEditingEntry}
-            />
+          {TEAMS.filter(t => (teamTotals[t] ?? 0) > 0).map(t => (
+            <button
+              key={t}
+              onClick={() => setActiveTeam(t)}
+              className={cn(
+                'flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 border-2',
+                activeTeam === t
+                  ? 'bg-white shadow-md border-current scale-[1.02]'
+                  : 'bg-white/50 border-transparent hover:bg-white',
+              )}
+              style={{ color: activeTeam === t ? TEAM_COLORS[t] : '#6b7280' }}
+            >
+              {t} <span className="text-xs px-1.5 py-0.5 rounded-md font-bold bg-current/10">{teamTotals[t]}</span>
+            </button>
           ))}
         </div>
+      )}
+
+      {/* Mode Switcher & Export */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center p-1 bg-gray-100/90 rounded-xl text-xs font-bold text-gray-600 shrink-0 border border-gray-200/60">
+          <button
+            type="button"
+            onClick={() => setViewMode('cards')}
+            className={cn(
+              'px-2.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5',
+              viewMode === 'cards' ? 'bg-white text-green-700 shadow-xs font-bold' : 'text-gray-500 hover:text-gray-900'
+            )}
+          >
+            <LayoutGrid className="w-3.5 h-3.5" />
+            卡片视图
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('table')}
+            className={cn(
+              'px-2.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5',
+              viewMode === 'table' ? 'bg-white text-green-700 shadow-xs font-bold' : 'text-gray-500 hover:text-gray-900'
+            )}
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5" />
+            Excel大表
+          </button>
+        </div>
+
+        {viewMode === 'cards' && (
+          <Button variant="outline" size="sm" onClick={() => exportHarvestDetail(entries, selectedDate, activeTeam)} className="text-xs gap-1.5">
+            <Download className="w-3.5 h-3.5" />导出 Excel
+          </Button>
+        )}
+      </div>
+
+      {/* Product List vs Excel Table */}
+      {viewMode === 'table' ? (
+        <ExcelDetailTable entries={allEntries} isLoading={isLoading} date={selectedDate} />
+      ) : (
+        isLoading ? (
+          <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-300" /></div>
+        ) : grouped.length === 0 ? (
+          <div className="text-center py-12 text-gray-400 text-sm">该日期暂无记录</div>
+        ) : (
+          <div className="space-y-2">
+            {grouped.map(group => (
+              <ProductGroup
+                key={group.product_id}
+                group={group}
+                profile={profile}
+                activeDate={selectedDate}
+                onEdit={setEditingEntry}
+              />
+            ))}
+          </div>
+        )
       )}
 
       <EditEntryModal

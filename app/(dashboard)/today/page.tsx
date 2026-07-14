@@ -9,9 +9,10 @@ import { useUser } from '@/hooks/useUser'
 import { TEAMS, TEAM_COLORS } from '@/lib/constants'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Loader2, Download, ChevronDown, ChevronRight, Plus, ChevronRight as ArrowRightIcon } from 'lucide-react'
+import { Loader2, Download, ChevronDown, ChevronRight, Plus, ChevronRight as ArrowRightIcon, LayoutGrid, FileSpreadsheet } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { exportHarvestDetail } from '@/lib/export-excel'
+import { ExcelDetailTable } from '@/components/forms/ExcelDetailTable'
 import type { HarvestEntryWithProduct, ProductSummary } from '@/lib/types'
 
 const TODAY = formatAucklandDate()
@@ -19,6 +20,7 @@ const TODAY = formatAucklandDate()
 export default function TodayPage() {
   const { isEditor } = useUser()
   const [activeTeam, setActiveTeam] = useState('all')
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards')
   const { data: entries = [], isLoading } = useHarvestEntries({
     date: TODAY,
     team: activeTeam === 'all' ? undefined : activeTeam,
@@ -82,59 +84,96 @@ export default function TodayPage() {
         </Link>
       </div>
 
-      {/* Team Tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none -mx-1 px-1">
-        <TeamTab
-          label="全部"
-          total={grandTotal}
-          active={activeTeam === 'all'}
-          color="#6b7280"
-          onClick={() => setActiveTeam('all')}
-        />
-        {TEAMS.filter(t => (teamTotals[t] ?? 0) > 0).map(t => (
+      {/* Team Tabs (Only in Cards Mode) */}
+      {viewMode === 'cards' && (
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none -mx-1 px-1">
           <TeamTab
-            key={t}
-            label={t}
-            total={teamTotals[t] ?? 0}
-            active={activeTeam === t}
-            color={TEAM_COLORS[t]}
-            onClick={() => setActiveTeam(t)}
+            label="全部"
+            total={grandTotal}
+            active={activeTeam === 'all'}
+            color="#6b7280"
+            onClick={() => setActiveTeam('all')}
           />
-        ))}
-      </div>
-
-      {/* Export & Register Action Buttons */}
-      <div className="flex items-center justify-between gap-2">
-        <Link href="/register">
-          <Button variant="default" size="sm" className="text-xs gap-1.5 bg-green-600 hover:bg-green-700 font-bold shadow-xs">
-            <Plus className="w-3.5 h-3.5" />
-            去录入收菜
-          </Button>
-        </Link>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => exportHarvestDetail(entries, TODAY, activeTeam)}
-          className="text-xs gap-1.5"
-        >
-          <Download className="w-3.5 h-3.5" />
-          导出 Excel
-        </Button>
-      </div>
-
-      {/* Entries grouped by product */}
-      {isLoading ? (
-        <div className="flex justify-center py-12">
-          <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
-        </div>
-      ) : grouped.length === 0 ? (
-        <div className="text-center py-12 text-gray-400 text-sm">今日暂无记录</div>
-      ) : (
-        <div className="space-y-2">
-          {grouped.map(group => (
-            <ProductGroup key={group.product_id + group.product_name} group={group} />
+          {TEAMS.filter(t => (teamTotals[t] ?? 0) > 0).map(t => (
+            <TeamTab
+              key={t}
+              label={t}
+              total={teamTotals[t] ?? 0}
+              active={activeTeam === t}
+              color={TEAM_COLORS[t]}
+              onClick={() => setActiveTeam(t)}
+            />
           ))}
         </div>
+      )}
+
+      {/* Control Toolbar: View Toggle & Register & Export Buttons */}
+      <div className="flex items-center justify-between gap-2">
+        {/* Mode Switcher */}
+        <div className="flex items-center p-1 bg-gray-100/90 rounded-xl text-xs font-bold text-gray-600 shrink-0 border border-gray-200/60">
+          <button
+            type="button"
+            onClick={() => setViewMode('cards')}
+            className={cn(
+              'px-2.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5',
+              viewMode === 'cards' ? 'bg-white text-green-700 shadow-xs font-bold' : 'text-gray-500 hover:text-gray-900'
+            )}
+          >
+            <LayoutGrid className="w-3.5 h-3.5" />
+            卡片视图
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('table')}
+            className={cn(
+              'px-2.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5',
+              viewMode === 'table' ? 'bg-white text-green-700 shadow-xs font-bold' : 'text-gray-500 hover:text-gray-900'
+            )}
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5" />
+            Excel大表
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Link href="/register">
+            <Button variant="default" size="sm" className="text-xs gap-1.5 bg-green-600 hover:bg-green-700 font-bold shadow-xs">
+              <Plus className="w-3.5 h-3.5" />
+              去录入
+            </Button>
+          </Link>
+          {viewMode === 'cards' && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => exportHarvestDetail(entries, TODAY, activeTeam)}
+              className="text-xs gap-1.5"
+            >
+              <Download className="w-3.5 h-3.5" />
+              导出
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Content Rendering: Table Mode vs Cards Mode */}
+      {viewMode === 'table' ? (
+        <ExcelDetailTable entries={allEntries} isLoading={isLoading} date={TODAY} />
+      ) : (
+        /* Entries grouped by product */
+        isLoading ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
+          </div>
+        ) : grouped.length === 0 ? (
+          <div className="text-center py-12 text-gray-400 text-sm">今日暂无记录</div>
+        ) : (
+          <div className="space-y-2">
+            {grouped.map(group => (
+              <ProductGroup key={group.product_id + group.product_name} group={group} />
+            ))}
+          </div>
+        )
       )}
 
       {/* Floating Action Button for Mobile / Quick Access */}

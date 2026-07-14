@@ -15,6 +15,7 @@ import {
   Shield,
   FileUp,
   Users,
+  FileSpreadsheet,
 } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
@@ -33,6 +34,7 @@ const mainNavItems: NavItem[] = [
 ]
 
 const moreItems: NavItem[] = [
+  { href: '/detail',   label: '收菜明细大表', icon: FileSpreadsheet },
   { href: '/chart',    label: '团队图表', icon: BarChart2 },
   { href: '/export',   label: '导出登记表', icon: FileDown },
   { href: '/products', label: '产品库',  icon: Package },
