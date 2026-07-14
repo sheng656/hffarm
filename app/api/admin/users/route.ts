@@ -47,14 +47,29 @@ export async function POST(request: Request) {
   try {
     const { authorized, error: authError, profile: operatorProfile } = await verifyAdmin()
     if (!authorized) {
-      return NextResponse.json({ error: authError }, { status: 403 })
+      return NextResponse.json({ error: authError || '无操作权限' }, { status: 403 })
+    }
+
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (!serviceRoleKey) {
+      console.error('[API Create User Error]: Missing SUPABASE_SERVICE_ROLE_KEY in environment variables')
+      return NextResponse.json({
+        error: '服务端未配置 SUPABASE_SERVICE_ROLE_KEY 环境变量，请在 Vercel 设置中添加。'
+      }, { status: 500 })
     }
 
     const body = await request.json()
     const { email, display_name, role } = body
 
-    if (!email || typeof email !== 'string') {
+    const cleanEmail = typeof email === 'string' ? email.trim().toLowerCase() : ''
+    if (!cleanEmail) {
       return NextResponse.json({ error: '邮箱为必填项' }, { status: 400 })
+    }
+
+    // Basic email format check
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(cleanEmail)) {
+      return NextResponse.json({ error: '输入的邮箱格式不正确' }, { status: 400 })
     }
 
     const targetRole = role || 'editor'
@@ -66,13 +81,20 @@ export async function POST(request: Request) {
 
     // 1. Create User in Auth with default password HFfarm2026
     const { data: newAuth, error: createError } = await supabaseAdmin.auth.admin.createUser({
-      email,
+      email: cleanEmail,
       password: 'HFfarm2026',
       email_confirm: true,
     })
 
     if (createError) {
-      return NextResponse.json({ error: createError.message }, { status: 400 })
+      console.error('[API Create User Auth Error]:', createError)
+      let msg = createError.message
+      if (msg.includes('already been registered') || msg.includes('already exists')) {
+        msg = `邮箱 ${cleanEmail} 已在 Supabase 账号库中注册过，请检查列表或重置该账号密码。`
+      } else if (msg.includes('Password should be')) {
+        msg = '默认密码不满足 Supabase 的密码强度规则要求。'
+      }
+      return NextResponse.json({ error: msg }, { status: 400 })
     }
 
     const userId = newAuth.user.id
@@ -82,13 +104,13 @@ export async function POST(request: Request) {
     const { error: profileError } = await supabaseAdmin
       .from('user_profiles')
       .update({
-        display_name: display_name || null,
+        display_name: display_name ? display_name.trim() : null,
         role: targetRole,
       })
       .eq('id', userId)
 
     if (profileError) {
-      console.error('Failed to update profile after creation:', profileError)
+      console.error('[API Update Profile Error after creation]:', profileError)
     }
 
     return NextResponse.json({
@@ -96,12 +118,13 @@ export async function POST(request: Request) {
       user: {
         id: userId,
         email: newAuth.user.email,
-        display_name: display_name || null,
+        display_name: display_name ? display_name.trim() : null,
         role: targetRole,
       },
     })
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Internal Server Error' }, { status: 500 })
+    console.error('[API Create User Catch Error]:', err)
+    return NextResponse.json({ error: err.message || '服务器内部错误' }, { status: 500 })
   }
 }
 

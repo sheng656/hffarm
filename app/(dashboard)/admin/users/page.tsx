@@ -112,11 +112,12 @@ export default function UsersPage() {
       const result = await res.json()
 
       if (!res.ok) {
-        throw new Error(result.error || '创建用户失败')
+        throw new Error(result.error || '创建用户失败，请检查账号状态或重试')
       }
 
       toast.success('🎉 新用户创建成功！', {
         description: `账号: ${newEmail.trim()}，初始密码为 HFfarm2026`,
+        duration: 5000,
       })
 
       setShowAddModal(false)
@@ -125,7 +126,10 @@ export default function UsersPage() {
       setNewRole('editor')
       fetchProfiles()
     } catch (err: any) {
-      toast.error('添加失败', { description: err.message })
+      toast.error('添加失败', {
+        description: err.message || '网络请求异常，请稍后重试',
+        duration: 6000,
+      })
     } finally {
       setAdding(false)
     }
