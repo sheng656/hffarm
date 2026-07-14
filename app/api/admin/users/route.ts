@@ -16,6 +16,11 @@ function getSupabaseAdmin() {
       autoRefreshToken: false,
       persistSession: false,
     },
+    global: {
+      headers: {
+        apikey: serviceRoleKey,
+      },
+    },
   })
 }
 
@@ -54,7 +59,7 @@ export async function POST(request: Request) {
     if (!serviceRoleKey) {
       console.error('[API Create User Error]: Missing SUPABASE_SERVICE_ROLE_KEY in environment variables')
       return NextResponse.json({
-        error: '服务端未配置 SUPABASE_SERVICE_ROLE_KEY 环境变量，请在 Vercel 设置中添加。'
+        error: '服务端未配置 SUPABASE_SERVICE_ROLE_KEY 环境变量，请在 Vercel 或 .env.local 中配置。'
       }, { status: 500 })
     }
 
@@ -89,12 +94,15 @@ export async function POST(request: Request) {
     let userId: string
 
     if (createError) {
-      console.error('[API Create User Auth Error]:', createError)
-      let msg = createError.message
-      
+      console.error('[API Create User Auth Error Details]:', createError)
+      let msg = createError.message || (typeof createError === 'string' ? createError : JSON.stringify(createError))
+      if (!msg || msg === '{}') {
+        msg = `Supabase Auth 创建用户失败 (${(createError as any).status || 400}): ${(createError as any).name || (createError as any).code || '请检查密钥权限'}`
+      }
+
       // Fail-safe handling: If user already exists in Supabase Auth
       if (msg.includes('already been registered') || msg.includes('already exists')) {
-        // Find existing profile or auth user
+        // 1. Check existing user_profiles
         const { data: existingProfiles } = await supabaseAdmin
           .from('user_profiles')
           .select('id, email, role, display_name')
@@ -102,31 +110,62 @@ export async function POST(request: Request) {
 
         if (existingProfiles && existingProfiles.length > 0) {
           userId = existingProfiles[0].id
-          // Update role and display_name for existing profile
+          const finalDisplayName = display_name ? display_name.trim() : existingProfiles[0].display_name
           await supabaseAdmin
             .from('user_profiles')
             .update({
-              display_name: display_name ? display_name.trim() : existingProfiles[0].display_name,
+              display_name: finalDisplayName,
               role: targetRole,
             })
             .eq('id', userId)
 
           return NextResponse.json({
             success: true,
-            message: `账号 ${cleanEmail} 已存在，已为您更新其权限角色为 ${targetRole}`,
+            message: `账号 ${cleanEmail} 已存在，已成功更新角色为【${targetRole}】！`,
             user: {
               id: userId,
               email: cleanEmail,
-              display_name: display_name ? display_name.trim() : existingProfiles[0].display_name,
+              display_name: finalDisplayName,
               role: targetRole,
             },
           })
         }
-      }
 
-      if (msg.includes('Password should be')) {
+        // 2. Profile missing but exists in Auth: search auth.users list
+        const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers()
+        const existingAuthUser = authUsers?.users?.find(u => u.email?.toLowerCase() === cleanEmail)
+
+        if (existingAuthUser) {
+          userId = existingAuthUser.id
+          const finalDisplayName = display_name ? display_name.trim() : null
+          
+          // Upsert profile for this user
+          await supabaseAdmin
+            .from('user_profiles')
+            .upsert({
+              id: userId,
+              email: cleanEmail,
+              display_name: finalDisplayName,
+              role: targetRole,
+            })
+
+          return NextResponse.json({
+            success: true,
+            message: `成功与 Auth 关联！已为 ${cleanEmail} 创建用户档案并设为【${targetRole}】角色`,
+            user: {
+              id: userId,
+              email: cleanEmail,
+              display_name: finalDisplayName,
+              role: targetRole,
+            },
+          })
+        }
+
+        msg = `邮箱 ${cleanEmail} 已在 Supabase 账号库中注册过，请在管理列表中检索或重置其密码。`
+      } else if (msg.includes('Password should be')) {
         msg = '默认密码不满足 Supabase 的密码强度规则要求。'
       }
+
       return NextResponse.json({ error: msg }, { status: 400 })
     } else {
       userId = newAuth.user.id

@@ -112,11 +112,15 @@ export default function UsersPage() {
       const result = await res.json()
 
       if (!res.ok) {
-        throw new Error(result.error || '创建用户失败，请检查账号状态或重试')
+        console.error('[Add User API Error Response]:', res.status, result)
+        const errorMsg = typeof result.error === 'string'
+          ? result.error
+          : (result.error?.message || (typeof result.error === 'object' ? JSON.stringify(result.error) : '创建用户失败，请检查账号状态'))
+        throw new Error(errorMsg)
       }
 
       toast.success('🎉 新用户创建成功！', {
-        description: `账号: ${newEmail.trim()}，初始密码为 HFfarm2026`,
+        description: result.message || `账号: ${newEmail.trim()}，初始密码为 HFfarm2026`,
         duration: 5000,
       })
 
@@ -126,8 +130,10 @@ export default function UsersPage() {
       setNewRole('editor')
       fetchProfiles()
     } catch (err: any) {
+      console.error('[Add User Error Catch]:', err)
+      const desc = typeof err === 'string' ? err : (err?.message || '网络请求异常，请稍后重试')
       toast.error('添加失败', {
-        description: err.message || '网络请求异常，请稍后重试',
+        description: desc,
         duration: 6000,
       })
     } finally {
