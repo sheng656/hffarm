@@ -1,0 +1,16 @@
+{
+  "name": "HF 农场成品菜数字化管理系统",
+  "short_name": "HF 农场",
+  "description": "HF Farm 成品菜收成与库存管理系统 — 每日收菜登记、汇总报表、数据导出",
+  "start_url": "/today",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#16a34a",
+  "icons": [
+    {
+      "src": "/file.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

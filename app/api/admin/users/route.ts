@@ -86,18 +86,51 @@ export async function POST(request: Request) {
       email_confirm: true,
     })
 
+    let userId: string
+
     if (createError) {
       console.error('[API Create User Auth Error]:', createError)
       let msg = createError.message
+      
+      // Fail-safe handling: If user already exists in Supabase Auth
       if (msg.includes('already been registered') || msg.includes('already exists')) {
-        msg = `邮箱 ${cleanEmail} 已在 Supabase 账号库中注册过，请检查列表或重置该账号密码。`
-      } else if (msg.includes('Password should be')) {
+        // Find existing profile or auth user
+        const { data: existingProfiles } = await supabaseAdmin
+          .from('user_profiles')
+          .select('id, email, role, display_name')
+          .eq('email', cleanEmail)
+
+        if (existingProfiles && existingProfiles.length > 0) {
+          userId = existingProfiles[0].id
+          // Update role and display_name for existing profile
+          await supabaseAdmin
+            .from('user_profiles')
+            .update({
+              display_name: display_name ? display_name.trim() : existingProfiles[0].display_name,
+              role: targetRole,
+            })
+            .eq('id', userId)
+
+          return NextResponse.json({
+            success: true,
+            message: `账号 ${cleanEmail} 已存在，已为您更新其权限角色为 ${targetRole}`,
+            user: {
+              id: userId,
+              email: cleanEmail,
+              display_name: display_name ? display_name.trim() : existingProfiles[0].display_name,
+              role: targetRole,
+            },
+          })
+        }
+      }
+
+      if (msg.includes('Password should be')) {
         msg = '默认密码不满足 Supabase 的密码强度规则要求。'
       }
       return NextResponse.json({ error: msg }, { status: 400 })
+    } else {
+      userId = newAuth.user.id
     }
-
-    const userId = newAuth.user.id
 
     // 2. The database trigger handle_new_user automatically inserts user_profile with role 'editor'
     // Now update profile if display_name or role differs
