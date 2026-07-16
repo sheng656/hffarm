@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, Fragment } from 'react'
 import { TEAM_COLORS } from '@/lib/constants'
 import { formatAucklandTime } from '@/lib/auckland-time'
 import { Badge } from '@/components/ui/badge'
@@ -302,34 +302,18 @@ export function ExcelDetailTable({ entries, isLoading, date }: ExcelDetailTableP
             <Filter className="w-3.5 h-3.5" />
             <span>团队:</span>
           </div>
-          <button
-            type="button"
-            onClick={() => setSelectedTeam('all')}
-            className={cn(
-              'px-2.5 py-1 rounded-lg font-semibold shrink-0 border transition-all',
-              selectedTeam === 'all'
-                ? 'bg-gray-800 text-white border-gray-800'
-                : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-            )}
+          <select
+            value={selectedTeam}
+            onChange={e => setSelectedTeam(e.target.value)}
+            className="h-7 px-2 text-xs rounded-lg border border-gray-200 bg-white font-semibold text-gray-700"
           >
-            全部
-          </button>
-          {['H', 'J', 'M', 'S', 'W', 'Y'].map(t => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => setSelectedTeam(t)}
-              className={cn(
-                'px-2.5 py-1 rounded-lg font-bold shrink-0 border transition-all',
-                selectedTeam === t
-                  ? 'text-white border-transparent shadow-xs'
-                  : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300'
-              )}
-              style={selectedTeam === t ? { backgroundColor: TEAM_COLORS[t] } : {}}
-            >
-              {t} 团队
-            </button>
-          ))}
+            <option value="all">全部团队</option>
+            {['H', 'J', 'M', 'S', 'W', 'Y'].map(t => (
+              <option key={t} value={t}>
+                {t} 团队
+              </option>
+            ))}
+          </select>
 
           {availableCrates.length > 0 && (
             <>
@@ -425,237 +409,240 @@ export function ExcelDetailTable({ entries, isLoading, date }: ExcelDetailTableP
               </tr>
             </thead>
 
-            {/* Table Body */}
-            <tbody>
-              {isLoading ? (
+            {isLoading ? (
+              <tbody>
                 <tr>
                   <td colSpan={11} className="py-12 text-center text-gray-400">
                     数据加载中...
                   </td>
                 </tr>
-              ) : filteredEntries.length === 0 ? (
+              </tbody>
+            ) : filteredEntries.length === 0 ? (
+              <tbody>
                 <tr>
                   <td colSpan={11} className="py-12 text-center text-gray-400">
                     暂无符合条件的收菜记录
                   </td>
                 </tr>
-              ) : groupMode === 'team-product' ? (
-                /* Group Mode 1: Team -> Product */
-                teamProductGroups.map((group) => {
-                  const teamCollapsed = !!collapsedGroups[`team_${group.teamName}`]
-                  const teamColor = TEAM_COLORS[group.teamName] || '#4b5563'
+              </tbody>
+            ) : groupMode === 'team-product' ? (
+              /* Group Mode 1: Team -> Product */
+              teamProductGroups.map((group) => {
+                const teamCollapsed = !!collapsedGroups[`team_${group.teamName}`]
+                const teamColor = TEAM_COLORS[group.teamName] || '#4b5563'
 
-                  return (
-                    <tbody key={group.teamName} className="border-b-2 border-emerald-100">
-                      {/* Team Group Header Row */}
-                      <tr
-                        onClick={() => toggleCollapse(`team_${group.teamName}`)}
-                        className="bg-emerald-100/70 hover:bg-emerald-100 text-emerald-950 font-bold border-b border-emerald-200/80 cursor-pointer transition-colors select-none"
-                      >
-                        <td colSpan={6} className="py-2.5 px-3 border-r border-emerald-200/60">
-                          <div className="flex items-center gap-2">
-                            {teamCollapsed ? <ChevronRight className="w-4 h-4 text-emerald-700" /> : <ChevronDown className="w-4 h-4 text-emerald-700" />}
-                            <span
-                              className="px-2.5 py-0.5 rounded-lg font-black text-xs text-white shadow-2xs"
-                              style={{ backgroundColor: teamColor }}
-                            >
-                              {group.teamName} 团队
-                            </span>
-                            <span className="text-emerald-800 text-[11px] font-semibold">
-                              ({group.products.length} 个产品)
-                            </span>
-                          </div>
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-bold text-emerald-900 border-r border-emerald-200/60">
-                          {group.teamTotalBag || ''}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-bold text-emerald-900 border-r border-emerald-200/60">
-                          {group.teamTotalLoose || ''}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-black text-emerald-950 text-sm border-r border-emerald-200/60 bg-emerald-200/40">
-                          {group.teamTotalQty} 筐
-                        </td>
-                        <td colSpan={2} className="py-2.5 px-3 text-[11px] text-emerald-700 font-medium">
-                          团队合计
-                        </td>
-                      </tr>
+                return (
+                  <tbody key={group.teamName} className="border-b-2 border-emerald-100">
+                    {/* Team Group Header Row */}
+                    <tr
+                      onClick={() => toggleCollapse(`team_${group.teamName}`)}
+                      className="bg-emerald-100/70 hover:bg-emerald-100 text-emerald-950 font-bold border-b border-emerald-200/80 cursor-pointer transition-colors select-none"
+                    >
+                      <td colSpan={6} className="py-2.5 px-3 border-r border-emerald-200/60">
+                        <div className="flex items-center gap-2">
+                          {teamCollapsed ? <ChevronRight className="w-4 h-4 text-emerald-700" /> : <ChevronDown className="w-4 h-4 text-emerald-700" />}
+                          <span
+                            className="px-2.5 py-0.5 rounded-lg font-black text-xs text-white shadow-2xs"
+                            style={{ backgroundColor: teamColor }}
+                          >
+                            {group.teamName} 团队
+                          </span>
+                          <span className="text-emerald-800 text-[11px] font-semibold">
+                            ({group.products.length} 个产品)
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-bold text-emerald-900 border-r border-emerald-200/60">
+                        {group.teamTotalBag || ''}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-bold text-emerald-900 border-r border-emerald-200/60">
+                        {group.teamTotalLoose || ''}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-black text-emerald-950 text-sm border-r border-emerald-200/60 bg-emerald-200/40">
+                        {group.teamTotalQty} 筐
+                      </td>
+                      <td colSpan={2} className="py-2.5 px-3 text-[11px] text-emerald-700 font-medium">
+                        团队合计
+                      </td>
+                    </tr>
 
-                      {/* Product Groups inside Team */}
-                      {!teamCollapsed && group.products.map(prod => {
-                        const prodKey = `prod_${group.teamName}_${prod.prodName}`
-                        const prodCollapsed = !!collapsedGroups[prodKey]
+                    {/* Product Groups inside Team */}
+                    {!teamCollapsed && group.products.map(prod => {
+                      const prodKey = `prod_${group.teamName}_${prod.prodName}`
+                      const prodCollapsed = !!collapsedGroups[prodKey]
 
-                        return (
-                          <template key={prod.prodName}>
-                            {/* Product SubHeader Row */}
+                      return (
+                        <Fragment key={prod.prodName}>
+                          {/* Product SubHeader Row */}
+                          <tr
+                            onClick={() => toggleCollapse(prodKey)}
+                            className="bg-emerald-50/40 hover:bg-emerald-100/50 border-b border-emerald-100 font-bold text-emerald-900 cursor-pointer select-none"
+                          >
+                            <td colSpan={6} className="py-1.5 px-3 pl-6 border-r border-emerald-100">
+                              <div className="flex items-center gap-1.5">
+                                {prodCollapsed ? <ChevronRight className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> : <ChevronDown className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
+                                <span className="font-bold text-gray-900">{prod.prodName}</span>
+                                <span className="text-[11px] font-medium text-emerald-700">
+                                  ({prod.items.length} 条记录)
+                                </span>
+                              </div>
+                            </td>
+                            <td className="py-1.5 px-3 text-right text-gray-700 border-r border-emerald-100 font-bold">
+                              {prod.pBag || ''}
+                            </td>
+                            <td className="py-1.5 px-3 text-right text-gray-700 border-r border-emerald-100 font-bold">
+                              {prod.pLoose || ''}
+                            </td>
+                            <td className="py-1.5 px-3 text-right font-black text-emerald-800 border-r border-emerald-100 bg-emerald-100/60">
+                              {prod.pTotal}
+                            </td>
+                            <td colSpan={2} className="py-1.5 px-3 text-[10px] text-gray-400 font-normal">
+                              产品小计
+                            </td>
+                          </tr>
+
+                          {/* Detail Rows under Product */}
+                          {!prodCollapsed && prod.items.map((entry, rowIdx) => (
                             <tr
-                              onClick={() => toggleCollapse(prodKey)}
-                              className="bg-emerald-50/40 hover:bg-emerald-100/50 border-b border-emerald-100 font-bold text-emerald-900 cursor-pointer select-none"
+                              key={entry.id}
+                              className="hover:bg-green-50/30 border-b border-gray-100 transition-colors text-gray-700"
                             >
-                              <td colSpan={6} className="py-1.5 px-3 pl-6 border-r border-emerald-100">
-                                <div className="flex items-center gap-1.5">
-                                  {prodCollapsed ? <ChevronRight className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> : <ChevronDown className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
-                                  <span className="font-bold text-gray-900">{prod.prodName}</span>
-                                  <span className="text-[11px] font-medium text-emerald-700">
-                                    ({prod.items.length} 条记录)
-                                  </span>
-                                </div>
+                              <td className="py-2 px-3 text-center text-gray-400 font-mono text-[11px] border-r border-gray-100">
+                                {rowIdx + 1}
                               </td>
-                              <td className="py-1.5 px-3 text-right text-gray-700 border-r border-emerald-100 font-bold">
-                                {prod.pBag || ''}
+                              <td className="py-2 px-3 border-r border-gray-100 font-bold">
+                                <span
+                                  className="px-1.5 py-0.5 rounded text-white text-[10px]"
+                                  style={{ backgroundColor: teamColor }}
+                                >
+                                  {entry.team}
+                                </span>
                               </td>
-                              <td className="py-1.5 px-3 text-right text-gray-700 border-r border-emerald-100 font-bold">
-                                {prod.pLoose || ''}
+                              <td className="py-2 px-3 border-r border-gray-100 font-medium text-gray-900 pl-8">
+                                {entry.product?.factory_product_name}
                               </td>
-                              <td className="py-1.5 px-3 text-right font-black text-emerald-800 border-r border-emerald-100 bg-emerald-100/60">
-                                {prod.pTotal}
+                              <td className="py-2 px-3 border-r border-gray-100">
+                                <span className="bg-emerald-50 text-emerald-800 border border-emerald-100/60 px-1.5 py-0.5 rounded font-mono font-semibold">
+                                  {entry.greenhouse_no}
+                                </span>
                               </td>
-                              <td colSpan={2} className="py-1.5 px-3 text-[10px] text-gray-400 font-normal">
-                                产品小计
+                              <td className="py-2 px-3 border-r border-gray-100 font-semibold text-gray-800">
+                                {entry.crate}
+                              </td>
+                              <td className="py-2 px-3 border-r border-gray-100 text-gray-600">
+                                {entry.pallet}
+                              </td>
+                              <td className="py-2 px-3 text-right border-r border-gray-100 font-mono">
+                                {entry.bag_qty || '-'}
+                              </td>
+                              <td className="py-2 px-3 text-right border-r border-gray-100 font-mono">
+                                {entry.loose_qty || '-'}
+                              </td>
+                              <td className="py-2 px-3 text-right font-black text-emerald-900 border-r border-gray-100 bg-emerald-50/40">
+                                {entry.total_qty}
+                              </td>
+                              <td className="py-2 px-3 border-r border-gray-100 text-amber-700 truncate max-w-[150px]">
+                                {entry.notes ? `📝 ${entry.notes}` : ''}
+                              </td>
+                              <td className="py-2 px-3 text-gray-400 text-[11px] font-mono whitespace-nowrap">
+                                {formatAucklandTime(entry.created_at)}
                               </td>
                             </tr>
+                          ))}
+                        </Fragment>
+                      )
+                    })}
+                  </tbody>
+                )
+              })
+            ) : groupMode === 'product-team' ? (
+              /* Group Mode 2: Product -> Team */
+              productTeamGroups.map(group => {
+                const prodCollapsed = !!collapsedGroups[`prod_${group.prodName}`]
 
-                            {/* Detail Rows under Product */}
-                            {!prodCollapsed && prod.items.map((entry, rowIdx) => (
-                              <tr
-                                key={entry.id}
-                                className="hover:bg-green-50/30 border-b border-gray-100 transition-colors text-gray-700"
-                              >
-                                <td className="py-2 px-3 text-center text-gray-400 font-mono text-[11px] border-r border-gray-100">
-                                  {rowIdx + 1}
-                                </td>
-                                <td className="py-2 px-3 border-r border-gray-100 font-bold">
-                                  <span
-                                    className="px-1.5 py-0.5 rounded text-white text-[10px]"
-                                    style={{ backgroundColor: teamColor }}
-                                  >
-                                    {entry.team}
-                                  </span>
-                                </td>
-                                <td className="py-2 px-3 border-r border-gray-100 font-medium text-gray-900 pl-8">
-                                  {entry.product?.factory_product_name}
-                                </td>
-                                <td className="py-2 px-3 border-r border-gray-100">
-                                  <span className="bg-emerald-50 text-emerald-800 border border-emerald-100/60 px-1.5 py-0.5 rounded font-mono font-semibold">
-                                    {entry.greenhouse_no}
-                                  </span>
-                                </td>
-                                <td className="py-2 px-3 border-r border-gray-100 font-semibold text-gray-800">
-                                  {entry.crate}
-                                </td>
-                                <td className="py-2 px-3 border-r border-gray-100 text-gray-600">
-                                  {entry.pallet}
-                                </td>
-                                <td className="py-2 px-3 text-right border-r border-gray-100 font-mono">
-                                  {entry.bag_qty || '-'}
-                                </td>
-                                <td className="py-2 px-3 text-right border-r border-gray-100 font-mono">
-                                  {entry.loose_qty || '-'}
-                                </td>
-                                <td className="py-2 px-3 text-right font-black text-emerald-900 border-r border-gray-100 bg-emerald-50/40">
-                                  {entry.total_qty}
-                                </td>
-                                <td className="py-2 px-3 border-r border-gray-100 text-amber-700 truncate max-w-[150px]">
-                                  {entry.notes ? `📝 ${entry.notes}` : ''}
-                                </td>
-                                <td className="py-2 px-3 text-gray-400 text-[11px] font-mono whitespace-nowrap">
-                                  {formatAucklandTime(entry.created_at)}
-                                </td>
-                              </tr>
-                            ))}
-                          </template>
-                        )
-                      })}
-                    </tbody>
-                  )
-                })
-              ) : groupMode === 'product-team' ? (
-                /* Group Mode 2: Product -> Team */
-                productTeamGroups.map(group => {
-                  const prodCollapsed = !!collapsedGroups[`prod_${group.prodName}`]
+                return (
+                  <tbody key={group.prodName} className="border-b-2 border-emerald-100">
+                    <tr
+                      onClick={() => toggleCollapse(`prod_${group.prodName}`)}
+                      className="bg-teal-100/80 hover:bg-teal-100 text-teal-950 font-bold border-b border-teal-200 cursor-pointer transition-colors select-none"
+                    >
+                      <td colSpan={6} className="py-2.5 px-3 border-r border-teal-200">
+                        <div className="flex items-center gap-2">
+                          {prodCollapsed ? <ChevronRight className="w-4 h-4 text-teal-700" /> : <ChevronDown className="w-4 h-4 text-teal-700" />}
+                          <span className="font-extrabold text-sm text-teal-950">{group.prodName}</span>
+                          <span className="text-teal-800 text-[11px] font-medium">
+                            ({group.items.length} 条记录)
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-bold text-teal-900 border-r border-teal-200">
+                        {group.pBag || ''}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-bold text-teal-900 border-r border-teal-200">
+                        {group.pLoose || ''}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-black text-teal-950 text-sm border-r border-teal-200 bg-teal-200/50">
+                        {group.pTotal} 筐
+                      </td>
+                      <td colSpan={2} className="py-2.5 px-3 text-[11px] text-teal-700">
+                        产品合计
+                      </td>
+                    </tr>
 
-                  return (
-                    <tbody key={group.prodName} className="border-b-2 border-emerald-100">
+                    {!prodCollapsed && group.items.map((entry, rowIdx) => (
                       <tr
-                        onClick={() => toggleCollapse(`prod_${group.prodName}`)}
-                        className="bg-teal-100/80 hover:bg-teal-100 text-teal-950 font-bold border-b border-teal-200 cursor-pointer transition-colors select-none"
+                        key={entry.id}
+                        className="hover:bg-gray-50 border-b border-gray-100 transition-colors text-gray-700"
                       >
-                        <td colSpan={6} className="py-2.5 px-3 border-r border-teal-200">
-                          <div className="flex items-center gap-2">
-                            {prodCollapsed ? <ChevronRight className="w-4 h-4 text-teal-700" /> : <ChevronDown className="w-4 h-4 text-teal-700" />}
-                            <span className="font-extrabold text-sm text-teal-950">{group.prodName}</span>
-                            <span className="text-teal-800 text-[11px] font-medium">
-                              ({group.items.length} 条记录)
-                            </span>
-                          </div>
+                        <td className="py-2 px-3 text-center text-gray-400 font-mono text-[11px] border-r border-gray-100">
+                          {rowIdx + 1}
                         </td>
-                        <td className="py-2.5 px-3 text-right font-bold text-teal-900 border-r border-teal-200">
-                          {group.pBag || ''}
+                        <td className="py-2 px-3 border-r border-gray-100 font-bold">
+                          <span
+                            className="px-1.5 py-0.5 rounded text-white text-[10px]"
+                            style={{ backgroundColor: TEAM_COLORS[entry.team] || '#4b5563' }}
+                          >
+                            {entry.team}
+                          </span>
                         </td>
-                        <td className="py-2.5 px-3 text-right font-bold text-teal-900 border-r border-teal-200">
-                          {group.pLoose || ''}
+                        <td className="py-2 px-3 border-r border-gray-100 font-medium text-gray-900 pl-4">
+                          {entry.product?.factory_product_name}
                         </td>
-                        <td className="py-2.5 px-3 text-right font-black text-teal-950 text-sm border-r border-teal-200 bg-teal-200/50">
-                          {group.pTotal} 筐
+                        <td className="py-2 px-3 border-r border-gray-100">
+                          <span className="bg-gray-100 px-1.5 py-0.5 rounded font-mono font-semibold text-gray-700">
+                            {entry.greenhouse_no}
+                          </span>
                         </td>
-                        <td colSpan={2} className="py-2.5 px-3 text-[11px] text-teal-700">
-                          产品合计
+                        <td className="py-2 px-3 border-r border-gray-100 font-semibold text-gray-800">
+                          {entry.crate}
+                        </td>
+                        <td className="py-2 px-3 border-r border-gray-100 text-gray-600">
+                          {entry.pallet}
+                        </td>
+                        <td className="py-2 px-3 text-right border-r border-gray-100 font-mono">
+                          {entry.bag_qty || '-'}
+                        </td>
+                        <td className="py-2 px-3 text-right border-r border-gray-100 font-mono">
+                          {entry.loose_qty || '-'}
+                        </td>
+                        <td className="py-2 px-3 text-right font-black text-gray-900 border-r border-gray-100 bg-green-50/30">
+                          {entry.total_qty}
+                        </td>
+                        <td className="py-2 px-3 border-r border-gray-100 text-amber-700 truncate max-w-[150px]">
+                          {entry.notes ? `📝 ${entry.notes}` : ''}
+                        </td>
+                        <td className="py-2 px-3 text-gray-400 text-[11px] font-mono whitespace-nowrap">
+                          {formatAucklandTime(entry.created_at)}
                         </td>
                       </tr>
-
-                      {!prodCollapsed && group.items.map((entry, rowIdx) => (
-                        <tr
-                          key={entry.id}
-                          className="hover:bg-gray-50 border-b border-gray-100 transition-colors text-gray-700"
-                        >
-                          <td className="py-2 px-3 text-center text-gray-400 font-mono text-[11px] border-r border-gray-100">
-                            {rowIdx + 1}
-                          </td>
-                          <td className="py-2 px-3 border-r border-gray-100 font-bold">
-                            <span
-                              className="px-1.5 py-0.5 rounded text-white text-[10px]"
-                              style={{ backgroundColor: TEAM_COLORS[entry.team] || '#4b5563' }}
-                            >
-                              {entry.team}
-                            </span>
-                          </td>
-                          <td className="py-2 px-3 border-r border-gray-100 font-medium text-gray-900 pl-4">
-                            {entry.product?.factory_product_name}
-                          </td>
-                          <td className="py-2 px-3 border-r border-gray-100">
-                            <span className="bg-gray-100 px-1.5 py-0.5 rounded font-mono font-semibold text-gray-700">
-                              {entry.greenhouse_no}
-                            </span>
-                          </td>
-                          <td className="py-2 px-3 border-r border-gray-100 font-semibold text-gray-800">
-                            {entry.crate}
-                          </td>
-                          <td className="py-2 px-3 border-r border-gray-100 text-gray-600">
-                            {entry.pallet}
-                          </td>
-                          <td className="py-2 px-3 text-right border-r border-gray-100 font-mono">
-                            {entry.bag_qty || '-'}
-                          </td>
-                          <td className="py-2 px-3 text-right border-r border-gray-100 font-mono">
-                            {entry.loose_qty || '-'}
-                          </td>
-                          <td className="py-2 px-3 text-right font-black text-gray-900 border-r border-gray-100 bg-green-50/30">
-                            {entry.total_qty}
-                          </td>
-                          <td className="py-2 px-3 border-r border-gray-100 text-amber-700 truncate max-w-[150px]">
-                            {entry.notes ? `📝 ${entry.notes}` : ''}
-                          </td>
-                          <td className="py-2 px-3 text-gray-400 text-[11px] font-mono whitespace-nowrap">
-                            {formatAucklandTime(entry.created_at)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  )
-                })
-              ) : (
-                /* Group Mode 3: Flat Sorted List */
-                sortedEntries.map((entry, idx) => (
+                    ))}
+                  </tbody>
+                )
+              })
+            ) : (
+              /* Group Mode 3: Flat Sorted List */
+              <tbody>
+                {sortedEntries.map((entry, idx) => (
                   <tr
                     key={entry.id}
                     className="hover:bg-green-50/40 border-b border-gray-100 transition-colors text-gray-700"
@@ -701,9 +688,9 @@ export function ExcelDetailTable({ entries, isLoading, date }: ExcelDetailTableP
                       {formatAucklandTime(entry.created_at)}
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
+                ))}
+              </tbody>
+            )}
 
             {/* Grand Total Footer Row */}
             {!isLoading && filteredEntries.length > 0 && (

@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
@@ -52,6 +53,7 @@ interface MobileNavProps {
 
 export function MobileNav({ isAdmin = false }: MobileNavProps) {
   const pathname = usePathname()
+  const [open, setOpen] = useState(false)
 
   return (
     <nav className="farm-nav bg-white/95 backdrop-blur-md border-t border-gray-100 shadow-[0_-1px_20px_rgba(0,0,0,0.06)]">
@@ -88,7 +90,7 @@ export function MobileNav({ isAdmin = false }: MobileNavProps) {
         })}
 
         {/* More Sheet */}
-        <Sheet>
+        <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger
             render={
               <button className="flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-medium text-gray-400 hover:text-gray-700 active:scale-95 transition-all duration-150">
@@ -108,6 +110,7 @@ export function MobileNav({ isAdmin = false }: MobileNavProps) {
                   <Link
                     key={item.href}
                     href={item.href}
+                    onClick={() => setOpen(false)}
                     className={cn(
                       'flex items-center gap-3 px-3 py-3.5 rounded-xl text-sm font-medium transition-colors',
                       pathname === item.href
@@ -133,6 +136,7 @@ export function MobileNav({ isAdmin = false }: MobileNavProps) {
                       <Link
                         key={item.href}
                         href={item.href}
+                        onClick={() => setOpen(false)}
                         className={cn(
                           'flex items-center gap-3 px-3 py-3.5 rounded-xl text-sm font-medium transition-colors',
                           pathname === item.href
